@@ -1,0 +1,109 @@
+{
+  "id": "demo_flow",
+  "name": "demo",
+  "nodes": [
+    {
+      "id": "n1",
+      "type": "start",
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "data": {
+        "label": "Start",
+        "code": null,
+        "expression": null,
+        "seconds": null,
+        "anchorId": null
+      }
+    },
+    {
+      "id": "n2",
+      "type": "task",
+      "position": {
+        "x": 0.0,
+        "y": 100.0
+      },
+      "data": {
+        "label": "set x=10",
+        "code": "ctx[\"x\"] = 10",
+        "expression": null,
+        "seconds": null,
+        "anchorId": null
+      }
+    },
+    {
+      "id": "n3",
+      "type": "condition",
+      "position": {
+        "x": 0.0,
+        "y": 200.0
+      },
+      "data": {
+        "label": "x>5",
+        "code": null,
+        "expression": "x > 5",
+        "seconds": null,
+        "anchorId": null
+      }
+    },
+    {
+      "id": "n4",
+      "type": "task",
+      "position": {
+        "x": 0.0,
+        "y": 300.0
+      },
+      "data": {
+        "label": "inc",
+        "code": "ctx[\"x\"] = ctx[\"x\"] + 1",
+        "expression": null,
+        "seconds": null,
+        "anchorId": null
+      }
+    },
+    {
+      "id": "n5",
+      "type": "end",
+      "position": {
+        "x": 0.0,
+        "y": 400.0
+      },
+      "data": {
+        "label": "End",
+        "code": null,
+        "expression": null,
+        "seconds": null,
+        "anchorId": null
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "n1",
+      "target": "n2",
+      "sourceHandle": null
+    },
+    {
+      "id": "e2",
+      "source": "n2",
+      "target": "n3",
+      "sourceHandle": null
+    },
+    {
+      "id": "e3",
+      "source": "n3",
+      "target": "n4",
+      "sourceHandle": "true"
+    },
+    {
+      "id": "e4",
+      "source": "n4",
+      "target": "n5",
+      "sourceHandle": null
+    }
+  ],
+  "createdAt": 1780900834.520144,
+  "updatedAt": 1780900834.520144
+}

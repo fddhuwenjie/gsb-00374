@@ -1,0 +1,12 @@
+[
+  {
+    "id": "trigger_8fde5160cf4b",
+    "flowId": "demo_flow",
+    "type": "cron",
+    "cronExpression": "*/5 * * * *",
+    "webhookPath": null,
+    "sourceFlowId": null,
+    "enabled": true,
+    "createdAt": 1780911275.0751512
+  }
+]
