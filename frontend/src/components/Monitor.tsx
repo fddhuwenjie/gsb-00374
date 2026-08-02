@@ -22,6 +22,7 @@ export const Monitor: React.FC = () => {
 
   const { executionState, setVariable } = useFlowStore();
   const { variables, trace, status } = executionState;
+  const isRunning = status === 'running' || status === 'pausing' || status === 'queued' || status === 'retry_wait' || status === 'awaiting_approval';
 
   const startEdit = (name: string, value: any) => {
     setEditingVar(name);
@@ -95,12 +96,20 @@ export const Monitor: React.FC = () => {
             className={`text-xs px-2 py-0.5 rounded ${
               status === 'running'
                 ? 'bg-green-500/20 text-green-400'
+                : status === 'pausing'
+                ? 'bg-yellow-500/20 text-yellow-400'
                 : status === 'paused'
                 ? 'bg-yellow-500/20 text-yellow-400'
-                : status === 'completed'
+                : status === 'retry_wait'
+                ? 'bg-orange-500/20 text-orange-400'
+                : status === 'awaiting_approval'
+                ? 'bg-amber-500/20 text-amber-400'
+                : status === 'succeeded'
                 ? 'bg-blue-500/20 text-blue-400'
-                : status === 'error'
+                : status === 'failed'
                 ? 'bg-red-500/20 text-red-400'
+                : status === 'cancelled'
+                ? 'bg-slate-600 text-slate-400'
                 : 'bg-slate-600 text-slate-400'
             }`}
           >
@@ -205,8 +214,8 @@ export const Monitor: React.FC = () => {
                             <button
                               onClick={() => startEdit(name, value)}
                               className="p-1 hover:bg-blue-500/20 text-blue-400 rounded disabled:opacity-50"
-                              disabled={status === 'running'}
-                              title={status === 'running' ? 'Pause to edit' : 'Edit variable'}
+                              disabled={isRunning}
+                              title={isRunning ? 'Pause to edit' : 'Edit variable'}
                             >
                               <Edit2 size={14} />
                             </button>

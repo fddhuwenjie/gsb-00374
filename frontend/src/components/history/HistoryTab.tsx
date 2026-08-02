@@ -85,11 +85,14 @@ export const HistoryTab: React.FC<HistoryTabProps> = ({ flowId, onReplay }) => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-green-400 bg-green-500/20';
-      case 'error': return 'text-red-400 bg-red-500/20';
-      case 'running': return 'text-blue-400 bg-blue-500/20';
+      case 'succeeded': return 'text-green-400 bg-green-500/20';
+      case 'failed': return 'text-red-400 bg-red-500/20';
+      case 'running': return 'text-green-400 bg-green-500/20';
+      case 'pausing': return 'text-yellow-400 bg-yellow-500/20';
       case 'paused': return 'text-yellow-400 bg-yellow-500/20';
-      case 'stopped': return 'text-slate-400 bg-slate-500/20';
+      case 'retry_wait': return 'text-orange-400 bg-orange-500/20';
+      case 'cancelled': return 'text-slate-400 bg-slate-500/20';
+      case 'queued': return 'text-slate-400 bg-slate-500/20';
       default: return 'text-slate-400 bg-slate-500/20';
     }
   };

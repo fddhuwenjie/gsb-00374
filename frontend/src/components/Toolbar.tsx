@@ -12,7 +12,7 @@ import {
   WifiOff,
   RotateCcw,
 } from 'lucide-react';
-import type { ExecutionStatus } from '../types/flow';
+import type { ExecutionStatus, ControlAction } from '../types/flow';
 
 interface ToolbarProps {
   onRun: () => void;
@@ -24,11 +24,24 @@ interface ToolbarProps {
   onLoad: () => void;
   onExport: () => void;
   onClear: () => void;
-  status: ExecutionStatus;
+  status: ExecutionStatus | 'idle';
+  allowedActions: ControlAction[];
   wsConnected: boolean;
   flowName: string;
   onFlowNameChange: (name: string) => void;
 }
+
+const statusColors: Record<string, string> = {
+  idle: 'text-slate-300',
+  queued: 'text-slate-300',
+  running: 'text-green-400',
+  pausing: 'text-yellow-400',
+  paused: 'text-yellow-400',
+  retry_wait: 'text-orange-400',
+  succeeded: 'text-blue-400',
+  failed: 'text-red-400',
+  cancelled: 'text-slate-400',
+};
 
 export const Toolbar: React.FC<ToolbarProps> = ({
   onRun,
@@ -41,13 +54,18 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onExport,
   onClear,
   status,
+  allowedActions,
   wsConnected,
   flowName,
   onFlowNameChange,
 }) => {
-  const isRunning = status === 'running';
-  const isPaused = status === 'paused';
-  const isIdle = status === 'idle' || status === 'completed' || status === 'stopped' || status === 'error';
+  const isIdle = status === 'idle';
+  const isTerminal = status === 'succeeded' || status === 'failed' || status === 'cancelled';
+  const canRun = isIdle || isTerminal;
+  const canPause = allowedActions.includes('pause');
+  const canResume = allowedActions.includes('resume');
+  const canStep = allowedActions.includes('step');
+  const canCancel = allowedActions.includes('cancel');
 
   return (
     <div className="h-14 bg-slate-800 border-b border-slate-700 px-4 flex items-center justify-between">
@@ -75,21 +93,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <div className="text-slate-500 text-sm px-2">
           Status:{' '}
-          <span
-            className={`font-semibold ${
-              status === 'running'
-                ? 'text-green-400'
-                : status === 'paused'
-                ? 'text-yellow-400'
-                : status === 'completed'
-                ? 'text-blue-400'
-                : status === 'error'
-                ? 'text-red-400'
-                : status === 'stopped'
-                ? 'text-slate-400'
-                : 'text-slate-300'
-            }`}
-          >
+          <span className={`font-semibold ${statusColors[status] || 'text-slate-300'}`}>
             {status}
           </span>
         </div>
@@ -97,17 +101,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-1">
-          {isIdle && (
+          {canRun && (
             <button
               onClick={onRun}
               className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
-              title="Run"
+              title={isTerminal ? 'Restart' : 'Run'}
             >
-              <Play size={18} />
+              {isTerminal ? <RotateCcw size={18} /> : <Play size={18} />}
             </button>
           )}
 
-          {isRunning && (
+          {canPause && (
             <button
               onClick={onPause}
               className="p-2 rounded hover:bg-yellow-500/20 text-yellow-400 transition-colors"
@@ -117,7 +121,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
           )}
 
-          {isPaused && (
+          {canResume && (
             <button
               onClick={onResume}
               className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
@@ -127,7 +131,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
           )}
 
-          {(isRunning || isPaused) && (
+          {canStep && (
             <button
               onClick={onStep}
               className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
@@ -137,23 +141,13 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
           )}
 
-          {(isRunning || isPaused) && (
+          {canCancel && (
             <button
               onClick={onStop}
               className="p-2 rounded hover:bg-red-500/20 text-red-400 transition-colors"
-              title="Stop"
+              title="Cancel"
             >
               <Square size={18} />
-            </button>
-          )}
-
-          {!isIdle && (
-            <button
-              onClick={onRun}
-              className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
-              title="Restart"
-            >
-              <RotateCcw size={18} />
             </button>
           )}
         </div>

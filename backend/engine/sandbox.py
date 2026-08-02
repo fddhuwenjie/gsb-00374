@@ -4,12 +4,35 @@ import threading
 import queue
 from typing import Any, Dict
 from RestrictedPython import compile_restricted, safe_globals
-from RestrictedPython.Eval import default_guarded_getitem
+from RestrictedPython.Eval import default_guarded_getitem, default_guarded_getiter
 from RestrictedPython.Guards import (
     full_write_guard,
     guarded_iter_unpack_sequence,
     guarded_unpack_sequence,
 )
+
+
+_INPLACE_OPS = {
+    '+=': lambda x, y: x + y,
+    '-=': lambda x, y: x - y,
+    '*=': lambda x, y: x * y,
+    '/=': lambda x, y: x / y,
+    '//=': lambda x, y: x // y,
+    '%=': lambda x, y: x % y,
+    '**=': lambda x, y: x ** y,
+    '&=': lambda x, y: x & y,
+    '|=': lambda x, y: x | y,
+    '^=': lambda x, y: x ^ y,
+    '<<=': lambda x, y: x << y,
+    '>>=': lambda x, y: x >> y,
+}
+
+
+def _safe_inplacevar(op, var, expr):
+    fn = _INPLACE_OPS.get(op)
+    if fn is None:
+        raise SyntaxError(f'Unsupported in-place operation: {op}')
+    return fn(var, expr)
 
 
 class SandboxError(Exception):
@@ -34,6 +57,8 @@ def _build_safe_globals(ctx: Dict[str, Any]) -> Dict[str, Any]:
     safe_globals_dict.update({
         '_getattr_': getattr,
         '_getitem_': default_guarded_getitem,
+        '_getiter_': default_guarded_getiter,
+        '_inplacevar_': _safe_inplacevar,
         '_write_': full_write_guard,
         '_iter_unpack_sequence_': guarded_iter_unpack_sequence,
         '_unpack_sequence_': guarded_unpack_sequence,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, GitBranch, RotateCcw, Clock, CircleDot, CircleOff, Globe, Database, Zap, Boxes, Shield } from 'lucide-react';
+import { Play, Square, GitBranch, RotateCcw, Clock, CircleDot, CircleOff, Globe, Database, FileText, Zap, Boxes, Shield, UserCheck } from 'lucide-react';
 import type { NodeType } from '../types/flow';
 import { nodeTypeColors, nodeTypeLabels, nodeTypeDescriptions } from '../utils/flowUtils';
 
@@ -16,12 +16,14 @@ const nodeIcons: Record<NodeType, React.ReactNode> = {
   wait: <Clock size={16} />,
   http: <Globe size={16} />,
   sql: <Database size={16} />,
+  file: <FileText size={16} />,
   parallel: <Zap size={16} />,
   subflow: <Boxes size={16} />,
   trycatch: <Shield size={16} />,
+  approval: <UserCheck size={16} />,
 };
 
-const nodeTypes: NodeType[] = ['start', 'end', 'task', 'condition', 'loop', 'wait', 'http', 'sql', 'parallel', 'subflow', 'trycatch'];
+const nodeTypes: NodeType[] = ['start', 'end', 'task', 'condition', 'loop', 'wait', 'http', 'sql', 'file', 'parallel', 'subflow', 'trycatch', 'approval'];
 
 export const Sidebar: React.FC<SidebarProps> = ({ onDragStart }) => {
   return (

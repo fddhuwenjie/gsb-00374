@@ -1,7 +1,8 @@
-export type NodeType = 'start' | 'end' | 'task' | 'condition' | 'loop' | 'wait' | 'http' | 'sql' | 'parallel' | 'subflow' | 'trycatch';
-export type ExecutionStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'completed' | 'error';
+export type NodeType = 'start' | 'end' | 'task' | 'condition' | 'loop' | 'wait' | 'http' | 'sql' | 'file' | 'parallel' | 'subflow' | 'trycatch' | 'approval';
+export type ExecutionStatus = 'queued' | 'running' | 'pausing' | 'paused' | 'retry_wait' | 'awaiting_approval' | 'succeeded' | 'failed' | 'cancelled';
 export type TraceAction = 'enter' | 'exit' | 'error';
 export type EdgeHandle = 'true' | 'false' | 'loop' | 'catch';
+export type ControlAction = 'pause' | 'resume' | 'cancel' | 'step';
 
 export interface Position {
   x: number;
@@ -19,14 +20,20 @@ export interface HttpConfig {
   url: string;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   headers: Record<string, string>;
-  body: string;
-  timeout: number;
+  body?: string;
+  timeout?: number;
 }
 
 export interface SqlConfig {
   connectionString: string;
   query: string;
   params: any[];
+}
+
+export interface FileWriteConfig {
+  path: string;
+  content: string;
+  mode: 'write' | 'append';
 }
 
 export interface ParallelConfig {
@@ -42,6 +49,31 @@ export interface TryCatchConfig {
   catchNodeIds: string[];
 }
 
+export interface ApprovalConfig {
+  approvers: string[];
+  timeoutSeconds?: number;
+  description?: string;
+}
+
+export type ApprovalOutcome = 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled';
+
+export interface ApprovalRequest {
+  token: string;
+  executionId: string;
+  nodeId: string;
+  attempt: number;
+  flowVersion: number;
+  generation: number;
+  approvers: string[];
+  description?: string;
+  createdAt: number;
+  deadline: number;
+  status: ApprovalOutcome;
+  respondedBy?: string;
+  respondedAt?: number;
+  comment?: string;
+}
+
 export interface NodeData {
   label: string;
   code?: string;
@@ -51,10 +83,13 @@ export interface NodeData {
   retry?: RetryConfig;
   httpConfig?: HttpConfig;
   sqlConfig?: SqlConfig;
+  fileConfig?: FileWriteConfig;
   parallelConfig?: ParallelConfig;
   subflowConfig?: SubflowConfig;
   tryCatchConfig?: TryCatchConfig;
+  approvalConfig?: ApprovalConfig;
   breakpoint?: boolean;
+  interruptible?: boolean;
 }
 
 export interface FlowNode {
@@ -89,14 +124,64 @@ export interface TraceLog {
   message?: string;
 }
 
+export interface StateEvent {
+  seq: number;
+  executionId: string;
+  timestamp: number;
+  eventType: string;
+  fromState?: ExecutionStatus;
+  toState?: ExecutionStatus;
+  nodeId?: string;
+  attempt?: number;
+  generation?: number;
+  idempotencyKey?: string;
+  requestId?: string;
+  payload: Record<string, any>;
+}
+
+export interface ExecutionSnapshot {
+  executionId: string;
+  flowId: string;
+  flowVersion: number;
+  nodeConfigHash: string;
+  status: ExecutionStatus;
+  seq: number;
+  timestamp: number;
+  currentNodeId?: string | null;
+  resumeFromNodeId?: string | null;
+  variables: Record<string, any>;
+  trace: TraceLog[];
+  loopCounts: Record<string, number>;
+  nodeAttempts: Record<string, number>;
+  generation: number;
+  completedNodes: string[];
+  pauseRequested: boolean;
+  cancelRequested: boolean;
+  allowedActions: ControlAction[];
+  retryUntil?: number | null;
+  retryNodeId?: string | null;
+  retryAttempt?: number | null;
+  retryDelay?: number | null;
+  parallelBranches: Record<string, any>;
+  lastError?: string | null;
+  stepMode: boolean;
+  pendingApproval?: ApprovalRequest | null;
+}
+
 export interface ExecutionState {
   flowId: string;
-  status: ExecutionStatus;
+  executionId: string | null;
+  status: ExecutionStatus | 'idle';
+  seq: number;
   currentNodeId: string | null;
   variables: Record<string, any>;
   trace: TraceLog[];
   loopCounts: Record<string, number>;
-  snapshots: Record<string, Record<string, any>>;
+  allowedActions: ControlAction[];
+  completedNodes: string[];
+  lastError: string | null;
+  flowVersion: number;
+  pendingApproval: ApprovalRequest | null;
 }
 
 export interface Execution {
@@ -121,27 +206,42 @@ export interface Trigger {
   createdAt: number;
 }
 
-export type ClientMessage =
-  | { type: 'execute'; flow: FlowDefinition }
-  | { type: 'pause' }
-  | { type: 'resume' }
-  | { type: 'step' }
-  | { type: 'stop' }
-  | { type: 'setVariable'; name: string; value: any }
-  | { type: 'setBreakpoint'; nodeId: string; enabled: boolean }
-  | { type: 'stepInto' }
-  | { type: 'stepOut' }
-  | { type: 'evaluate'; expression: string };
+export interface ClientMessage {
+  type: 'execute' | 'subscribe' | 'pause' | 'resume' | 'cancel' | 'step' | 'stepInto' | 'stepOut' | 'setVariable' | 'setBreakpoint' | 'evaluate' | 'approve' | 'reject';
+  flow?: FlowDefinition;
+  variables?: Record<string, any>;
+  executionId?: string;
+  requestId?: string;
+  afterSeq?: number;
+  name?: string;
+  value?: any;
+  nodeId?: string;
+  enabled?: boolean;
+  expression?: string;
+  token?: string;
+  responder?: string;
+  comment?: string;
+}
 
-export type ServerMessage =
-  | { type: 'nodeEnter'; nodeId: string; variables: Record<string, any>; callDepth: number }
-  | { type: 'nodeExit'; nodeId: string; variables: Record<string, any>; callDepth: number }
-  | { type: 'nodeError'; nodeId: string; error: string; variables: Record<string, any>; callDepth: number }
-  | { type: 'status'; status: ExecutionStatus; variables: Record<string, any> }
-  | { type: 'trace'; log: TraceLog }
-  | { type: 'completed'; variables: Record<string, any>; trace: TraceLog[] }
-  | { type: 'error'; message: string }
-  | { type: 'breakpointUpdated'; nodeId: string; enabled: boolean; breakpoints: string[] }
-  | { type: 'breakpointHit'; nodeId: string; variables: Record<string, any>; callDepth: number }
-  | { type: 'debugPaused'; reason: string; nodeId: string; callDepth: number; variables: Record<string, any> }
-  | { type: 'evaluateResult'; expression: string; result?: any; error?: string; success: boolean };
+export interface ServerMessage {
+  type: 'subscribed' | 'event' | 'commandResult' | 'snapshot' | 'error' | 'breakpointUpdated' | 'evaluateResult';
+  executionId?: string;
+  snapshot?: ExecutionSnapshot;
+  event?: StateEvent;
+  command?: string;
+  accepted?: boolean;
+  reason?: string;
+  status?: string;
+  requestId?: string;
+  message?: string;
+  nodeId?: string;
+  enabled?: boolean;
+  breakpoints?: string[];
+  expression?: string;
+  result?: any;
+  error?: string;
+  success?: boolean;
+  token?: string;
+  decision?: string;
+  allowedActions?: ControlAction[];
+}

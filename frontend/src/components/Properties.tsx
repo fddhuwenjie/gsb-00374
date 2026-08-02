@@ -3,7 +3,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { X, Settings, Type, Code, GitBranch, RotateCcw, Clock, Globe, Database, Zap, Boxes, Shield, RefreshCw, Bug, Plus, Trash2 } from 'lucide-react';
+import { X, Settings, Type, Code, GitBranch, RotateCcw, Clock, Globe, Database, FileText, Zap, Boxes, Shield, RefreshCw, Bug, Plus, Trash2, UserCheck } from 'lucide-react';
 import { useFlowStore } from '../store/useFlowStore';
 import type { FlowNode, NodeType } from '../types/flow';
 
@@ -20,9 +20,11 @@ const nodeIcons: Record<NodeType, React.ReactNode> = {
   wait: <Clock size={16} />,
   http: <Globe size={16} />,
   sql: <Database size={16} />,
+  file: <FileText size={16} />,
   parallel: <Zap size={16} />,
   subflow: <Boxes size={16} />,
   trycatch: <Shield size={16} />,
+  approval: <UserCheck size={16} />,
 };
 
 const nodeTypeTitles: Record<NodeType, string> = {
@@ -34,9 +36,11 @@ const nodeTypeTitles: Record<NodeType, string> = {
   wait: 'Wait Node',
   http: 'HTTP Node',
   sql: 'SQL Node',
+  file: 'File Node',
   parallel: 'Parallel Node',
   subflow: 'Subflow Node',
   trycatch: 'TryCatch Node',
+  approval: 'Approval Node',
 };
 
 export const Properties: React.FC<PropertiesProps> = () => {
@@ -480,6 +484,68 @@ export const Properties: React.FC<PropertiesProps> = () => {
             </div>
             {renderMultiInput('tryCatchConfig.tryNodeIds', 'Try Node IDs', data.tryCatchConfig?.tryNodeIds || [])}
             {renderMultiInput('tryCatchConfig.catchNodeIds', 'Catch Node IDs', data.tryCatchConfig?.catchNodeIds || [])}
+          </>
+        )}
+
+        {type === 'approval' && (
+          <>
+            <div className="pt-2 border-t border-slate-700">
+              <h3 className="text-sm font-medium text-slate-300 mb-3 flex items-center gap-2">
+                <UserCheck size={14} className="text-amber-400" />
+                Approval Configuration
+              </h3>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Approvers (comma-separated)
+              </label>
+              <input
+                type="text"
+                value={(data.approvalConfig?.approvers || []).join(', ')}
+                onChange={(e) => updateNodeData(selectedNode.id, {
+                  approvalConfig: {
+                    ...data.approvalConfig,
+                    approvers: e.target.value.split(',').map(s => s.trim()).filter(Boolean),
+                  },
+                })}
+                placeholder="alice, bob"
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Timeout (seconds)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={data.approvalConfig?.timeoutSeconds ?? 600}
+                onChange={(e) => updateNodeData(selectedNode.id, {
+                  approvalConfig: {
+                    ...data.approvalConfig,
+                    timeoutSeconds: parseFloat(e.target.value) || 600,
+                  },
+                })}
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Description
+              </label>
+              <textarea
+                value={data.approvalConfig?.description || ''}
+                onChange={(e) => updateNodeData(selectedNode.id, {
+                  approvalConfig: {
+                    ...data.approvalConfig,
+                    description: e.target.value,
+                  },
+                })}
+                placeholder="What needs approval?"
+                rows={2}
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm resize-none"
+              />
+            </div>
           </>
         )}
 

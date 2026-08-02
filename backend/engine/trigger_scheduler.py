@@ -3,14 +3,14 @@ import time
 from datetime import datetime
 from typing import Dict, Optional, Callable, Awaitable
 from storage.trigger_store import TriggerStore
-from storage.flow_store import FlowStore
+from storage.versioned_flow_store import VersionedFlowStore
 from engine.executor import FlowExecutor
 from engine.cron_parser import CronExpression, CronParseError
 from models.flow import Trigger, Execution
 
 
 class TriggerScheduler:
-    def __init__(self, trigger_store: TriggerStore, flow_store: FlowStore,
+    def __init__(self, trigger_store: TriggerStore, flow_store: VersionedFlowStore,
                  on_flow_triggered: Optional[Callable[[str, dict], Awaitable[None]]] = None):
         self.trigger_store = trigger_store
         self.flow_store = flow_store

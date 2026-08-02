@@ -5,14 +5,14 @@ from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel
 from models.flow import Trigger
 from storage.trigger_store import TriggerStore
-from storage.flow_store import FlowStore
+from storage.versioned_flow_store import VersionedFlowStore
 from engine.cron_parser import CronExpression, CronParseError
 
 router = APIRouter(prefix="/api/triggers", tags=["triggers"])
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 trigger_store = TriggerStore(os.path.join(BASE_DIR, "flows"))
-flow_store = FlowStore(os.path.join(BASE_DIR, "flows"))
+flow_store = VersionedFlowStore(os.path.join(BASE_DIR, "flows"))
 
 
 class CreateTriggerRequest(BaseModel):

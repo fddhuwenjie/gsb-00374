@@ -7,6 +7,9 @@ import type {
   ExecutionStatus,
   TraceLog,
   NodeType,
+  ExecutionSnapshot,
+  StateEvent,
+  ControlAction,
 } from '../types/flow';
 
 interface FlowStore {
@@ -34,11 +37,15 @@ interface FlowStore {
   setErrorMessage: (message: string | null) => void;
   fetchFlows: () => Promise<void>;
 
-  updateExecutionStatus: (status: ExecutionStatus, variables?: Record<string, any>) => void;
+  applySnapshot: (snapshot: ExecutionSnapshot) => void;
+  applyEvent: (event: StateEvent) => void;
+  setExecutionId: (id: string | null) => void;
+  updateExecutionStatus: (status: ExecutionStatus | 'idle', variables?: Record<string, any>) => void;
   updateVariables: (variables: Record<string, any>) => void;
   addTraceLog: (log: TraceLog) => void;
   setVariable: (name: string, value: any) => void;
   resetExecution: () => void;
+  isActionAllowed: (action: ControlAction) => boolean;
 
   getFlowDefinition: () => FlowDefinition;
   loadFlowDefinition: (flow: FlowDefinition) => void;
@@ -51,12 +58,18 @@ const generateId = (): string => {
 
 const initialExecutionState: ExecutionState = {
   flowId: '',
+  executionId: null,
   status: 'idle',
+  seq: 0,
   currentNodeId: null,
   variables: {},
   trace: [],
   loopCounts: {},
-  snapshots: {},
+  allowedActions: [],
+  completedNodes: [],
+  lastError: null,
+  flowVersion: 1,
+  pendingApproval: null,
 };
 
 export const useFlowStore = create<FlowStore>((set, get) => ({
@@ -118,6 +131,107 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
     }
   },
 
+  applySnapshot: (snapshot) =>
+    set((state) => ({
+      executionState: {
+        ...state.executionState,
+        executionId: snapshot.executionId,
+        flowId: snapshot.flowId,
+        status: snapshot.status,
+        seq: snapshot.seq,
+        currentNodeId: snapshot.currentNodeId ?? null,
+        variables: { ...snapshot.variables },
+        trace: [...snapshot.trace],
+        loopCounts: { ...snapshot.loopCounts },
+        allowedActions: [...snapshot.allowedActions],
+        completedNodes: [...snapshot.completedNodes],
+        lastError: snapshot.lastError ?? null,
+        flowVersion: snapshot.flowVersion ?? 1,
+        pendingApproval: snapshot.pendingApproval ?? null,
+      },
+      activeNodeId: snapshot.currentNodeId ?? state.activeNodeId,
+    })),
+
+  applyEvent: (event) =>
+    set((state) => {
+      if (event.seq <= state.executionState.seq) {
+        return state;
+      }
+
+      const next: ExecutionState = {
+        ...state.executionState,
+        seq: event.seq,
+      };
+
+      if (event.toState) {
+        next.status = event.toState;
+      }
+
+      if (event.eventType === 'nodeEnter' && event.nodeId) {
+        next.currentNodeId = event.nodeId;
+        return { executionState: next, activeNodeId: event.nodeId };
+      }
+
+      if (event.eventType === 'nodeExit' && event.nodeId) {
+        if (event.payload?.next) {
+          next.currentNodeId = event.payload.next as string;
+        }
+      }
+
+      if (event.eventType === 'nodeError' && event.nodeId) {
+        next.currentNodeId = event.nodeId;
+        next.lastError = event.payload?.error ?? 'Unknown error';
+        return { executionState: next, activeNodeId: event.nodeId };
+      }
+
+      if (event.eventType === 'approvalRequested') {
+        next.pendingApproval = {
+          token: event.payload?.token,
+          executionId: event.executionId,
+          nodeId: event.nodeId ?? '',
+          attempt: event.attempt ?? 1,
+          flowVersion: event.payload?.flowVersion ?? 1,
+          generation: event.generation ?? 0,
+          approvers: event.payload?.approvers ?? [],
+          description: event.payload?.description,
+          createdAt: event.timestamp,
+          deadline: event.payload?.deadline ?? 0,
+          status: 'pending',
+        };
+      }
+
+      if (event.eventType === 'approvalResponded' || event.eventType === 'approvalExpired' || event.eventType === 'approvalCancelled') {
+        if (next.pendingApproval && next.pendingApproval.token === event.payload?.token) {
+          next.pendingApproval = null;
+        }
+      }
+
+      if (event.eventType === 'trace') {
+        return state;
+      }
+
+      if (event.eventType === 'transition' && event.toState) {
+        const terminalStates = ['succeeded', 'failed', 'cancelled'];
+        if (terminalStates.includes(event.toState)) {
+          next.pendingApproval = null;
+          return {
+            executionState: next,
+            activeNodeId: null,
+          };
+        }
+        if (event.toState !== 'awaiting_approval') {
+          next.pendingApproval = state.executionState.pendingApproval;
+        }
+      }
+
+      return { executionState: next };
+    }),
+
+  setExecutionId: (id) =>
+    set((state) => ({
+      executionState: { ...state.executionState, executionId: id },
+    })),
+
   updateExecutionStatus: (status, variables) =>
     set((state) => ({
       executionState: {
@@ -154,9 +268,12 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       },
     })),
 
+  isActionAllowed: (action) =>
+    get().executionState.allowedActions.includes(action),
+
   resetExecution: () =>
     set({
-      executionState: { ...initialExecutionState, flowId: get().flowId, snapshots: {} },
+      executionState: { ...initialExecutionState, flowId: get().flowId },
       activeNodeId: null,
       errorMessage: null,
     }),
@@ -180,7 +297,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       flowName: flow.name,
       nodes: flow.nodes,
       edges: flow.edges,
-      executionState: { ...initialExecutionState, flowId: flow.id, snapshots: {} },
+      executionState: { ...initialExecutionState, flowId: flow.id },
       selectedNodeId: null,
       activeNodeId: null,
     }),
@@ -190,7 +307,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       nodes: [],
       edges: [],
       selectedNodeId: null,
-      executionState: { ...initialExecutionState, flowId: '', snapshots: {} },
+      executionState: { ...initialExecutionState, flowId: '' },
       activeNodeId: null,
       flowName: 'Untitled Flow',
       flowId: generateId(),
@@ -213,9 +330,11 @@ export const createNewNode = (
     wait: 'Wait',
     http: 'HTTP',
     sql: 'SQL',
+    file: 'File',
     parallel: 'Parallel',
     subflow: 'Subflow',
     trycatch: 'TryCatch',
+    approval: 'Approval',
   };
 
   const data: FlowNode['data'] = {
@@ -251,6 +370,13 @@ export const createNewNode = (
       params: [],
     };
   }
+  if (type === 'file') {
+    data.fileConfig = {
+      path: 'output.txt',
+      content: '',
+      mode: 'write',
+    };
+  }
   if (type === 'parallel') {
     data.parallelConfig = {
       branchNodeIds: [],
@@ -265,6 +391,13 @@ export const createNewNode = (
     data.tryCatchConfig = {
       tryNodeIds: [],
       catchNodeIds: [],
+    };
+  }
+  if (type === 'approval') {
+    data.approvalConfig = {
+      approvers: [],
+      timeoutSeconds: 600,
+      description: '',
     };
   }
 
