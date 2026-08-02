@@ -1,7 +1,64 @@
-export type NodeType = 'start' | 'end' | 'task' | 'condition' | 'loop' | 'wait' | 'http' | 'sql' | 'parallel' | 'subflow' | 'trycatch';
+export type NodeType = 'start' | 'end' | 'task' | 'condition' | 'loop' | 'wait' | 'http' | 'sql' | 'parallel' | 'subflow' | 'trycatch' | 'filewrite' | 'approval';
 export type ExecutionStatus = 'idle' | 'running' | 'paused' | 'stopped' | 'completed' | 'error';
 export type TraceAction = 'enter' | 'exit' | 'error';
 export type EdgeHandle = 'true' | 'false' | 'loop' | 'catch';
+
+// ---- persistent (v2) execution engine types ----
+export type V2ExecutionStatus =
+  | 'queued'
+  | 'running'
+  | 'pausing'
+  | 'paused'
+  | 'retry_wait'
+  | 'awaiting_approval'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
+
+export type V2Command = 'pause' | 'resume' | 'cancel' | 'retry' | 'approve' | 'reject';
+
+export interface V2PendingApproval {
+  nodeId: string;
+  attempt: any;
+  generation: any;
+  token: string;
+  approvers: string[];
+  deadline: number;
+  flowVersion: number | null;
+}
+
+export interface V2Event {
+  seq: number;
+  executionId: string;
+  ts: number;
+  type: 'created' | 'status' | 'node_started' | 'node_completed' | 'node_failed' | 'side_effect' | 'command' | 'approval_requested' | 'approval_resolved';
+  fromStatus?: V2ExecutionStatus | null;
+  toStatus?: V2ExecutionStatus;
+  nodeId?: string | null;
+  attempt?: number;
+  allowedCommands?: V2Command[];
+  allowedTransitions?: V2ExecutionStatus[];
+  [key: string]: any;
+}
+
+export interface V2Snapshot {
+  executionId: string;
+  flowId: string;
+  status: V2ExecutionStatus;
+  seq: number;
+  allowedTransitions: V2ExecutionStatus[];
+  allowedCommands: V2Command[];
+  variables: Record<string, any>;
+  currentNodeId: string | null;
+  completedNodes: string[];
+  lastError: string | null;
+  pendingApprovals?: V2PendingApproval[];
+}
+
+export type MonitorMessage =
+  | ({ type: 'snapshot' } & V2Snapshot)
+  | { type: 'event'; event: V2Event }
+  | { type: 'error'; message: string };
 
 export interface Position {
   x: number;
@@ -54,6 +111,8 @@ export interface NodeData {
   parallelConfig?: ParallelConfig;
   subflowConfig?: SubflowConfig;
   tryCatchConfig?: TryCatchConfig;
+  fileConfig?: { path: string; content: string };
+  approvalConfig?: { approvers: string[]; timeoutSeconds: number };
   breakpoint?: boolean;
 }
 

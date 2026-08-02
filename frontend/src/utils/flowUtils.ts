@@ -12,6 +12,8 @@ export const nodeTypeColors: Record<NodeType, { bg: string; border: string; text
   parallel: { bg: '#f97316', border: '#ea580c', text: '#ffffff' },
   subflow: { bg: '#14b8a6', border: '#0d9488', text: '#ffffff' },
   trycatch: { bg: '#ec4899', border: '#db2777', text: '#ffffff' },
+  filewrite: { bg: '#84cc16', border: '#65a30d', text: '#ffffff' },
+  approval: { bg: '#eab308', border: '#ca8a04', text: '#1f2937' },
 };
 
 export const nodeTypeLabels: Record<NodeType, string> = {
@@ -26,6 +28,8 @@ export const nodeTypeLabels: Record<NodeType, string> = {
   parallel: 'Parallel',
   subflow: 'Subflow',
   trycatch: 'TryCatch',
+  filewrite: 'FileWrite',
+  approval: 'Approval',
 };
 
 export const nodeTypeDescriptions: Record<NodeType, string> = {
@@ -40,6 +44,8 @@ export const nodeTypeDescriptions: Record<NodeType, string> = {
   parallel: 'Parallel fork-join branches',
   subflow: 'Execute nested subflow',
   trycatch: 'Try-catch error handling',
+  filewrite: 'Write file (idempotent side effect)',
+  approval: 'Human approval gate with expirable token',
 };
 
 export const handleColors: Record<EdgeHandle | string, string> = {

@@ -11,11 +11,21 @@ import {
   Wifi,
   WifiOff,
   RotateCcw,
+  Server,
+  X,
 } from 'lucide-react';
-import type { ExecutionStatus } from '../types/flow';
+import type { ExecutionStatus, V2Command, V2ExecutionStatus } from '../types/flow';
+
+export interface ServerControl {
+  status: V2ExecutionStatus | null;
+  allowedCommands: V2Command[];
+  onCommand: (command: V2Command) => void;
+  onDetach: () => void;
+}
 
 interface ToolbarProps {
   onRun: () => void;
+  onRunPersistent: () => void;
   onPause: () => void;
   onResume: () => void;
   onStep: () => void;
@@ -28,10 +38,12 @@ interface ToolbarProps {
   wsConnected: boolean;
   flowName: string;
   onFlowNameChange: (name: string) => void;
+  serverControl?: ServerControl | null;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
   onRun,
+  onRunPersistent,
   onPause,
   onResume,
   onStep,
@@ -44,10 +56,17 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   wsConnected,
   flowName,
   onFlowNameChange,
+  serverControl,
 }) => {
   const isRunning = status === 'running';
   const isPaused = status === 'paused';
   const isIdle = status === 'idle' || status === 'completed' || status === 'stopped' || status === 'error';
+
+  // Server-driven mode: every button's enabled/visible state comes from the
+  // allowed command set reported by the server, never from local inference.
+  const serverMode = serverControl != null;
+  const allowed = new Set(serverControl?.allowedCommands ?? []);
+  const displayStatus = serverMode ? serverControl.status ?? 'queued' : status;
 
   return (
     <div className="h-14 bg-slate-800 border-b border-slate-700 px-4 flex items-center justify-between">
@@ -77,84 +96,146 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           Status:{' '}
           <span
             className={`font-semibold ${
-              status === 'running'
+              displayStatus === 'running'
                 ? 'text-green-400'
-                : status === 'paused'
+                : displayStatus === 'paused' || displayStatus === 'pausing'
                 ? 'text-yellow-400'
-                : status === 'completed'
+                : displayStatus === 'completed' || displayStatus === 'succeeded'
                 ? 'text-blue-400'
-                : status === 'error'
+                : displayStatus === 'error' || displayStatus === 'failed'
                 ? 'text-red-400'
-                : status === 'stopped'
+                : displayStatus === 'stopped' || displayStatus === 'cancelled'
                 ? 'text-slate-400'
+                : displayStatus === 'retry_wait'
+                ? 'text-orange-400'
                 : 'text-slate-300'
             }`}
           >
-            {status}
+            {displayStatus}
+            {serverMode && <span className="text-slate-500 text-xs ml-1">(persistent)</span>}
           </span>
         </div>
       </div>
 
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-1">
-          {isIdle && (
-            <button
-              onClick={onRun}
-              className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
-              title="Run"
-            >
-              <Play size={18} />
-            </button>
-          )}
+          {serverMode ? (
+            <>
+              {allowed.has('pause') && (
+                <button
+                  onClick={() => serverControl.onCommand('pause')}
+                  className="p-2 rounded hover:bg-yellow-500/20 text-yellow-400 transition-colors"
+                  title="Pause (persistent)"
+                >
+                  <Pause size={18} />
+                </button>
+              )}
+              {allowed.has('resume') && (
+                <button
+                  onClick={() => serverControl.onCommand('resume')}
+                  className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
+                  title="Resume (persistent)"
+                >
+                  <Play size={18} />
+                </button>
+              )}
+              {allowed.has('retry') && (
+                <button
+                  onClick={() => serverControl.onCommand('retry')}
+                  className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
+                  title="Retry failed execution"
+                >
+                  <RotateCcw size={18} />
+                </button>
+              )}
+              {allowed.has('cancel') && (
+                <button
+                  onClick={() => serverControl.onCommand('cancel')}
+                  className="p-2 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                  title="Cancel (persistent)"
+                >
+                  <Square size={18} />
+                </button>
+              )}
+              <button
+                onClick={serverControl.onDetach}
+                className="p-2 rounded hover:bg-slate-500/20 text-slate-400 transition-colors"
+                title="Detach monitor"
+              >
+                <X size={18} />
+              </button>
+            </>
+          ) : (
+            <>
+              {isIdle && (
+                <>
+                  <button
+                    onClick={onRun}
+                    className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
+                    title="Run"
+                  >
+                    <Play size={18} />
+                  </button>
+                  <button
+                    onClick={onRunPersistent}
+                    className="p-2 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                    title="Run persistent (resumable, idempotent)"
+                  >
+                    <Server size={18} />
+                  </button>
+                </>
+              )}
 
-          {isRunning && (
-            <button
-              onClick={onPause}
-              className="p-2 rounded hover:bg-yellow-500/20 text-yellow-400 transition-colors"
-              title="Pause"
-            >
-              <Pause size={18} />
-            </button>
-          )}
+              {isRunning && (
+                <button
+                  onClick={onPause}
+                  className="p-2 rounded hover:bg-yellow-500/20 text-yellow-400 transition-colors"
+                  title="Pause"
+                >
+                  <Pause size={18} />
+                </button>
+              )}
 
-          {isPaused && (
-            <button
-              onClick={onResume}
-              className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
-              title="Resume"
-            >
-              <Play size={18} />
-            </button>
-          )}
+              {isPaused && (
+                <button
+                  onClick={onResume}
+                  className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
+                  title="Resume"
+                >
+                  <Play size={18} />
+                </button>
+              )}
 
-          {(isRunning || isPaused) && (
-            <button
-              onClick={onStep}
-              className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
-              title="Step"
-            >
-              <SkipForward size={18} />
-            </button>
-          )}
+              {(isRunning || isPaused) && (
+                <button
+                  onClick={onStep}
+                  className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
+                  title="Step"
+                >
+                  <SkipForward size={18} />
+                </button>
+              )}
 
-          {(isRunning || isPaused) && (
-            <button
-              onClick={onStop}
-              className="p-2 rounded hover:bg-red-500/20 text-red-400 transition-colors"
-              title="Stop"
-            >
-              <Square size={18} />
-            </button>
-          )}
+              {(isRunning || isPaused) && (
+                <button
+                  onClick={onStop}
+                  className="p-2 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+                  title="Stop"
+                >
+                  <Square size={18} />
+                </button>
+              )}
 
-          {!isIdle && (
-            <button
-              onClick={onRun}
-              className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
-              title="Restart"
-            >
-              <RotateCcw size={18} />
-            </button>
+              {!isIdle && (
+                <button
+                  onClick={onRun}
+                  className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
+                  title="Restart"
+                >
+                  <RotateCcw size={18} />
+                </button>
+              )}
+            </>
           )}
         </div>
 

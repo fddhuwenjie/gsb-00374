@@ -3,7 +3,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { X, Settings, Type, Code, GitBranch, RotateCcw, Clock, Globe, Database, Zap, Boxes, Shield, RefreshCw, Bug, Plus, Trash2 } from 'lucide-react';
+import { X, Settings, Type, Code, GitBranch, RotateCcw, Clock, Globe, Database, Zap, Boxes, Shield, RefreshCw, Bug, Plus, Trash2, FileText, UserCheck } from 'lucide-react';
 import { useFlowStore } from '../store/useFlowStore';
 import type { FlowNode, NodeType } from '../types/flow';
 
@@ -23,6 +23,8 @@ const nodeIcons: Record<NodeType, React.ReactNode> = {
   parallel: <Zap size={16} />,
   subflow: <Boxes size={16} />,
   trycatch: <Shield size={16} />,
+  filewrite: <FileText size={16} />,
+  approval: <UserCheck size={16} />,
 };
 
 const nodeTypeTitles: Record<NodeType, string> = {
@@ -37,6 +39,8 @@ const nodeTypeTitles: Record<NodeType, string> = {
   parallel: 'Parallel Node',
   subflow: 'Subflow Node',
   trycatch: 'TryCatch Node',
+  filewrite: 'FileWrite Node',
+  approval: 'Approval Node',
 };
 
 export const Properties: React.FC<PropertiesProps> = () => {

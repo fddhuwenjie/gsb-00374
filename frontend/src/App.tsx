@@ -9,7 +9,8 @@ import { HistoryTab } from './components/history/HistoryTab';
 import { DebugTab } from './components/debug/DebugTab';
 import { useFlowStore, createNewNode } from './store/useFlowStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import type { NodeType, ServerMessage, ClientMessage, FlowDefinition } from './types/flow';
+import { useExecutionMonitor } from './hooks/useExecutionMonitor';
+import type { NodeType, ServerMessage, ClientMessage, FlowDefinition, ExecutionStatus, V2Command, V2ExecutionStatus } from './types/flow';
 import { Clock, History, Bug, GitBranch } from 'lucide-react';
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/execute`;
@@ -45,6 +46,8 @@ function App() {
   const [bottomTab, setBottomTab] = useState<BottomTab>('monitor');
   const [breakpoints, setBreakpoints] = useState<string[]>([]);
   const [evaluateResults, setEvaluateResults] = useState<Map<string, any>>(new Map());
+  const [v2ExecutionId, setV2ExecutionId] = useState<string | null>(null);
+  const v2Monitor = useExecutionMonitor(v2ExecutionId);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -208,6 +211,69 @@ function App() {
     sendMessage({ type: 'stop' });
   }, [sendMessage]);
 
+  // ---- persistent (v2) execution: server-owned state machine ----
+  const handleRunPersistent = useCallback(async () => {
+    try {
+      const flow = getFlowDefinition();
+      const response = await fetch(`${API_URL}/v2/executions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flow }),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const data = await response.json();
+      resetExecution();
+      setV2ExecutionId(data.executionId);
+    } catch (error) {
+      setErrorMessage('Failed to start persistent execution: ' + (error as Error).message);
+    }
+  }, [getFlowDefinition, resetExecution, setErrorMessage]);
+
+  const handleV2Command = useCallback(
+    async (command: V2Command, extra?: Record<string, any>) => {
+      if (!v2ExecutionId) return;
+      try {
+        await fetch(`${API_URL}/v2/executions/${v2ExecutionId}/commands`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // unique command id; the server dedupes retries of the same id
+          body: JSON.stringify({ commandId: crypto.randomUUID(), command, ...extra }),
+        });
+      } catch (error) {
+        setErrorMessage(`Command ${command} failed: ` + (error as Error).message);
+      }
+    },
+    [v2ExecutionId, setErrorMessage]
+  );
+
+  // Mirror the persistent execution into the monitor panel. Status mapping is
+  // display-only; button state is driven by server-reported allowedCommands.
+  useEffect(() => {
+    if (!v2ExecutionId || !v2Monitor.status) return;
+    const statusMap: Record<V2ExecutionStatus, ExecutionStatus> = {
+      queued: 'idle',
+      running: 'running',
+      pausing: 'running',
+      paused: 'paused',
+      retry_wait: 'running',
+      awaiting_approval: 'paused',
+      succeeded: 'completed',
+      failed: 'error',
+      cancelled: 'stopped',
+    };
+    updateExecutionStatus(statusMap[v2Monitor.status], v2Monitor.variables);
+    setActiveNodeId(v2Monitor.currentNodeId);
+  }, [
+    v2ExecutionId,
+    v2Monitor.status,
+    v2Monitor.variables,
+    v2Monitor.currentNodeId,
+    updateExecutionStatus,
+    setActiveNodeId,
+  ]);
+
   const handleSave = useCallback(async () => {
     try {
       const flow = getFlowDefinition();
@@ -321,6 +387,7 @@ function App() {
     <div className="h-screen flex flex-col bg-slate-900 text-white overflow-hidden">
       <Toolbar
         onRun={handleRun}
+        onRunPersistent={handleRunPersistent}
         onPause={handlePause}
         onResume={handleResume}
         onStep={handleStep}
@@ -333,6 +400,16 @@ function App() {
         wsConnected={wsConnected}
         flowName={flowName}
         onFlowNameChange={setFlowName}
+        serverControl={
+          v2ExecutionId
+            ? {
+                status: v2Monitor.status,
+                allowedCommands: v2Monitor.allowedCommands,
+                onCommand: handleV2Command,
+                onDetach: () => setV2ExecutionId(null),
+              }
+            : null
+        }
       />
 
       {errorMessage && (
@@ -344,6 +421,55 @@ function App() {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {v2ExecutionId && v2Monitor.pendingApprovals.length > 0 && (
+        <div className="bg-yellow-500/10 border-b border-yellow-500/40 px-4 py-2 text-sm">
+          {v2Monitor.pendingApprovals.map((pending) => (
+            <div key={pending.token} className="flex items-center gap-3 py-1">
+              <span className="text-yellow-300 font-semibold">
+                Approval required: node {pending.nodeId}
+              </span>
+              <span className="text-slate-400 text-xs">
+                attempt {String(pending.attempt)} · flow v{pending.flowVersion ?? '?'} ·
+                expires {new Date(pending.deadline * 1000).toLocaleTimeString()}
+              </span>
+              {/* buttons render only when the server allows the action */}
+              {v2Monitor.allowedCommands.includes('approve') && (
+                <button
+                  onClick={() =>
+                    handleV2Command('approve', {
+                      token: pending.token,
+                      approver: pending.approvers[0] ?? 'approver',
+                      nodeId: pending.nodeId,
+                      attempt: pending.attempt,
+                      flowVersion: pending.flowVersion,
+                    })
+                  }
+                  className="px-2 py-1 rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-medium"
+                >
+                  Approve{pending.approvers[0] ? ` (${pending.approvers[0]})` : ''}
+                </button>
+              )}
+              {v2Monitor.allowedCommands.includes('reject') && (
+                <button
+                  onClick={() =>
+                    handleV2Command('reject', {
+                      token: pending.token,
+                      approver: pending.approvers[0] ?? 'approver',
+                      nodeId: pending.nodeId,
+                      attempt: pending.attempt,
+                      flowVersion: pending.flowVersion,
+                    })
+                  }
+                  className="px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs font-medium"
+                >
+                  Reject
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
 
