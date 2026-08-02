@@ -1,7 +1,7 @@
 from typing import Literal, Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
-NodeType = Literal['start', 'end', 'task', 'condition', 'loop', 'wait', 'http', 'sql', 'parallel', 'subflow', 'trycatch']
+NodeType = Literal['start', 'end', 'task', 'condition', 'loop', 'wait', 'http', 'sql', 'parallel', 'subflow', 'trycatch', 'filewrite', 'approval']
 ExecutionStatus = Literal['idle', 'running', 'paused', 'stopped', 'completed', 'error']
 TraceAction = Literal['enter', 'exit', 'error']
 EdgeHandle = Literal['true', 'false', 'loop', 'catch']
@@ -49,6 +49,16 @@ class TryCatchConfig(BaseModel):
     catchNodeIds: List[str]
 
 
+class FileWriteConfig(BaseModel):
+    path: str
+    content: str = ''
+
+
+class ApprovalConfig(BaseModel):
+    approvers: List[str] = Field(default_factory=list)
+    timeoutSeconds: float = 300.0
+
+
 class NodeData(BaseModel):
     label: str
     code: Optional[str] = None
@@ -61,6 +71,8 @@ class NodeData(BaseModel):
     parallelConfig: Optional[ParallelConfig] = None
     subflowConfig: Optional[SubflowConfig] = None
     tryCatchConfig: Optional[TryCatchConfig] = None
+    fileConfig: Optional[FileWriteConfig] = None
+    approvalConfig: Optional[ApprovalConfig] = None
     breakpoint: Optional[bool] = None
 
 

@@ -216,6 +216,8 @@ export const createNewNode = (
     parallel: 'Parallel',
     subflow: 'Subflow',
     trycatch: 'TryCatch',
+    filewrite: 'FileWrite',
+    approval: 'Approval',
   };
 
   const data: FlowNode['data'] = {

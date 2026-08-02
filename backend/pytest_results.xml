@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="26" time="19.701" timestamp="2026-08-02T01:40:43.223899+08:00" hostname="DESKTOP-ULO6Q6Q"><testcase classname="test_acceptance" name="test_flow_1" time="0.005" /><testcase classname="test_acceptance" name="test_flow_2" time="0.009" /><testcase classname="test_acceptance" name="test_sandbox_security" time="0.002" /><testcase classname="test_acceptance" name="test_pause_resume" time="0.505" /><testcase classname="test_direct_vars" name="test_variable_direct_access" time="4.122"><failure message="ConnectionRefusedError: [WinError 1225] 远程计算机拒绝网络连接。">async def test_variable_direct_access():
+        uri = 'ws://localhost:8000/ws/execute'
+    
+        flow = {
+            'id': 'test-direct-vars',
+            'name': 'Direct Variable Access Test',
+            'createdAt': time.time(),
+            'updatedAt': time.time(),
+            'nodes': [
+                {'id': 'start', 'type': 'start', 'position': {'x': 100, 'y': 100}, 'data': {'label': 'Start'}},
+                {'id': 'task1', 'type': 'task', 'position': {'x': 100, 'y': 200}, 'data': {'label': 'Set x=10', 'code': 'ctx["x"] = 10'}},
+                {'id': 'condition', 'type': 'condition', 'position': {'x': 100, 'y': 300}, 'data': {'label': 'x &gt; 5', 'expression': 'x &gt; 5'}},
+                {'id': 'task_true', 'type': 'task', 'position': {'x': 0, 'y': 400}, 'data': {'label': 'True', 'code': 'ctx["result"] = "yes"'}},
+                {'id': 'task_false', 'type': 'task', 'position': {'x': 200, 'y': 400}, 'data': {'label': 'False', 'code': 'ctx["result"] = "no"'}},
+                {'id': 'end', 'type': 'end', 'position': {'x': 100, 'y': 500}, 'data': {'label': 'End'}}
+            ],
+            'edges': [
+                {'id': 'e1', 'source': 'start', 'target': 'task1'},
+                {'id': 'e2', 'source': 'task1', 'target': 'condition'},
+                {'id': 'e3', 'source': 'condition', 'target': 'task_true', 'sourceHandle': 'true'},
+                {'id': 'e4', 'source': 'condition', 'target': 'task_false', 'sourceHandle': 'false'},
+                {'id': 'e5', 'source': 'task_true', 'target': 'end'},
+                {'id': 'e6', 'source': 'task_false', 'target': 'end'}
+            ]
+        }
+    
+        print('Testing WebSocket with direct variable access (x &gt; 5)...')
+    
+&gt;       async with websockets.connect(uri) as websocket:
+
+test_direct_vars.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:614: in __aenter__
+    self.connection = await self
+                      ^^^^^^^^^^
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:568: in __await_impl__
+    connection = await self.open_tcp_connection()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:483: in open_tcp_connection
+    _, connection = await loop.create_connection(factory, **kwargs)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\asyncio\base_events.py:1091: in create_connection
+    raise exceptions[0]
+C:\Python311\Lib\asyncio\base_events.py:1070: in create_connection
+    sock = await self._connect_sock(
+C:\Python311\Lib\asyncio\base_events.py:974: in _connect_sock
+    await self.sock_connect(sock, address)
+C:\Python311\Lib\asyncio\proactor_events.py:726: in sock_connect
+    return await self._proactor.connect(sock, address)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\asyncio\windows_events.py:854: in _poll
+    value = callback(transferred, key, ov)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+trans = 0, key = 0, ov = &lt;_overlapped.Overlapped object at 0x0000016EAFE59530&gt;
+
+    def finish_connect(trans, key, ov):
+&gt;       ov.getresult()
+E       ConnectionRefusedError: [WinError 1225] 远程计算机拒绝网络连接。
+
+C:\Python311\Lib\asyncio\windows_events.py:641: ConnectionRefusedError</failure></testcase><testcase classname="test_direct_vars" name="test_loop_direct_access" time="4.092"><failure message="ConnectionRefusedError: [WinError 1225] 远程计算机拒绝网络连接。">async def test_loop_direct_access():
+        uri = 'ws://localhost:8000/ws/execute'
+    
+        flow = {
+            'id': 'test-loop-direct',
+            'name': 'Loop Direct Variable Test',
+            'createdAt': time.time(),
+            'updatedAt': time.time(),
+            'nodes': [
+                {'id': 'start', 'type': 'start', 'position': {'x': 100, 'y': 100}, 'data': {'label': 'Start'}},
+                {'id': 'task_init', 'type': 'task', 'position': {'x': 100, 'y': 200}, 'data': {'label': 'i = 0', 'code': 'ctx["i"] = 0'}},
+                {'id': 'loop', 'type': 'loop', 'position': {'x': 100, 'y': 300}, 'data': {'label': 'i &lt; 3', 'expression': 'i &lt; 3'}},
+                {'id': 'loop_anchor', 'type': 'task', 'position': {'x': 100, 'y': 350}, 'data': {'label': 'Anchor', 'code': 'pass'}},
+                {'id': 'task_inc', 'type': 'task', 'position': {'x': 100, 'y': 400}, 'data': {'label': 'i = i + 1', 'code': 'ctx["i"] = ctx["i"] + 1'}},
+                {'id': 'end', 'type': 'end', 'position': {'x': 100, 'y': 500}, 'data': {'label': 'End'}}
+            ],
+            'edges': [
+                {'id': 'e1', 'source': 'start', 'target': 'task_init'},
+                {'id': 'e2', 'source': 'task_init', 'target': 'loop'},
+                {'id': 'e3', 'source': 'loop', 'target': 'loop_anchor', 'sourceHandle': 'loop'},
+                {'id': 'e4', 'source': 'loop', 'target': 'end', 'sourceHandle': None},
+                {'id': 'e5', 'source': 'loop_anchor', 'target': 'task_inc'},
+                {'id': 'e6', 'source': 'task_inc', 'target': 'loop'}
+            ]
+        }
+    
+        print('\nTesting WebSocket with loop direct variable access (i &lt; 3)...')
+    
+&gt;       async with websockets.connect(uri) as websocket:
+
+test_direct_vars.py:104: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:614: in __aenter__
+    self.connection = await self
+                      ^^^^^^^^^^
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:568: in __await_impl__
+    connection = await self.open_tcp_connection()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:483: in open_tcp_connection
+    _, connection = await loop.create_connection(factory, **kwargs)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\asyncio\base_events.py:1091: in create_connection
+    raise exceptions[0]
+C:\Python311\Lib\asyncio\base_events.py:1070: in create_connection
+    sock = await self._connect_sock(
+C:\Python311\Lib\asyncio\base_events.py:974: in _connect_sock
+    await self.sock_connect(sock, address)
+C:\Python311\Lib\asyncio\proactor_events.py:726: in sock_connect
+    return await self._proactor.connect(sock, address)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\asyncio\windows_events.py:854: in _poll
+    value = callback(transferred, key, ov)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+trans = 0, key = 0, ov = &lt;_overlapped.Overlapped object at 0x0000016EAFE5BCF0&gt;
+
+    def finish_connect(trans, key, ov):
+&gt;       ov.getresult()
+E       ConnectionRefusedError: [WinError 1225] 远程计算机拒绝网络连接。
+
+C:\Python311\Lib\asyncio\windows_events.py:641: ConnectionRefusedError</failure></testcase><testcase classname="test_new_features" name="test_sql_node" time="0.103" /><testcase classname="test_new_features" name="test_http_node" time="2.284" /><testcase classname="test_new_features" name="test_parallel_node" time="0.005" /><testcase classname="test_new_features" name="test_trycatch_node" time="0.004" /><testcase classname="test_new_features" name="test_subflow_node" time="0.111" /><testcase classname="test_new_features" name="test_subflow_circular_detection" time="0.083" /><testcase classname="test_new_features" name="test_retry_mechanism" time="0.331" /><testcase classname="test_new_features" name="test_retry_failure" time="0.122" /><testcase classname="test_new_features" name="test_breakpoint" time="0.108" /><testcase classname="test_new_features" name="test_ctx_snapshots" time="0.004" /><testcase classname="test_new_features" name="test_existing_functionality" time="0.004" /><testcase classname="test_resumable_engine" name="test_illegal_transitions_rejected" time="0.114" /><testcase classname="test_resumable_engine" name="test_pause_race_and_duplicate_commands" time="0.647" /><testcase classname="test_resumable_engine" name="test_process_restart_resumes_from_boundary" time="0.184" /><testcase classname="test_resumable_engine" name="test_parallel_join_generation" time="0.229" /><testcase classname="test_resumable_engine" name="test_failure_retry_sequence" time="0.315" /><testcase classname="test_resumable_engine" name="test_duplicate_stale_and_illegal_commands" time="0.127" /><testcase classname="test_resumable_engine" name="test_side_effect_idempotency_across_restart" time="0.182" /><testcase classname="test_resumable_engine" name="test_websocket_replay" time="0.843" /><testcase classname="test_ws" name="test_websocket" time="4.096"><failure message="ConnectionRefusedError: [WinError 1225] 远程计算机拒绝网络连接。">async def test_websocket():
+        uri = 'ws://localhost:8000/ws/execute'
+    
+        flow = {
+            'id': 'test-ws',
+            'name': 'WS Test',
+            'createdAt': time.time(),
+            'updatedAt': time.time(),
+            'nodes': [
+                {'id': 'start', 'type': 'start', 'position': {'x': 100, 'y': 100}, 'data': {'label': 'Start'}},
+                {'id': 'task1', 'type': 'task', 'position': {'x': 100, 'y': 200}, 'data': {'label': 'Test', 'code': 'ctx["x"] = 42'}},
+                {'id': 'end', 'type': 'end', 'position': {'x': 100, 'y': 300}, 'data': {'label': 'End'}}
+            ],
+            'edges': [
+                {'id': 'e1', 'source': 'start', 'target': 'task1'},
+                {'id': 'e2', 'source': 'task1', 'target': 'end'}
+            ]
+        }
+    
+        print('Testing WebSocket communication...')
+    
+&gt;       async with websockets.connect(uri) as websocket:
+
+test_ws.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:614: in __aenter__
+    self.connection = await self
+                      ^^^^^^^^^^
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:568: in __await_impl__
+    connection = await self.open_tcp_connection()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\site-packages\websockets\asyncio\client.py:483: in open_tcp_connection
+    _, connection = await loop.create_connection(factory, **kwargs)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\asyncio\base_events.py:1091: in create_connection
+    raise exceptions[0]
+C:\Python311\Lib\asyncio\base_events.py:1070: in create_connection
+    sock = await self._connect_sock(
+C:\Python311\Lib\asyncio\base_events.py:974: in _connect_sock
+    await self.sock_connect(sock, address)
+C:\Python311\Lib\asyncio\proactor_events.py:726: in sock_connect
+    return await self._proactor.connect(sock, address)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Python311\Lib\asyncio\windows_events.py:854: in _poll
+    value = callback(transferred, key, ov)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+trans = 0, key = 0, ov = &lt;_overlapped.Overlapped object at 0x0000016EAFFE74B0&gt;
+
+    def finish_connect(trans, key, ov):
+&gt;       ov.getresult()
+E       ConnectionRefusedError: [WinError 1225] 远程计算机拒绝网络连接。
+
+C:\Python311\Lib\asyncio\windows_events.py:641: ConnectionRefusedError</failure></testcase></testsuite></testsuites>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, GitBranch, RotateCcw, Clock, CircleDot, CircleOff, Globe, Database, Zap, Boxes, Shield } from 'lucide-react';
+import { Play, Square, GitBranch, RotateCcw, Clock, CircleDot, CircleOff, Globe, Database, Zap, Boxes, Shield, FileText, UserCheck } from 'lucide-react';
 import type { NodeType } from '../types/flow';
 import { nodeTypeColors, nodeTypeLabels, nodeTypeDescriptions } from '../utils/flowUtils';
 
@@ -19,6 +19,8 @@ const nodeIcons: Record<NodeType, React.ReactNode> = {
   parallel: <Zap size={16} />,
   subflow: <Boxes size={16} />,
   trycatch: <Shield size={16} />,
+  filewrite: <FileText size={16} />,
+  approval: <UserCheck size={16} />,
 };
 
 const nodeTypes: NodeType[] = ['start', 'end', 'task', 'condition', 'loop', 'wait', 'http', 'sql', 'parallel', 'subflow', 'trycatch'];
