@@ -9,9 +9,11 @@ export const nodeTypeColors: Record<NodeType, { bg: string; border: string; text
   wait: { bg: '#6b7280', border: '#4b5563', text: '#ffffff' },
   http: { bg: '#0ea5e9', border: '#0284c7', text: '#ffffff' },
   sql: { bg: '#a855f7', border: '#9333ea', text: '#ffffff' },
+  file: { bg: '#f59e0b', border: '#d97706', text: '#1f2937' },
   parallel: { bg: '#f97316', border: '#ea580c', text: '#ffffff' },
   subflow: { bg: '#14b8a6', border: '#0d9488', text: '#ffffff' },
   trycatch: { bg: '#ec4899', border: '#db2777', text: '#ffffff' },
+  approval: { bg: '#f59e0b', border: '#d97706', text: '#1f2937' },
 };
 
 export const nodeTypeLabels: Record<NodeType, string> = {
@@ -23,9 +25,11 @@ export const nodeTypeLabels: Record<NodeType, string> = {
   wait: 'Wait',
   http: 'HTTP',
   sql: 'SQL',
+  file: 'File',
   parallel: 'Parallel',
   subflow: 'Subflow',
   trycatch: 'TryCatch',
+  approval: 'Approval',
 };
 
 export const nodeTypeDescriptions: Record<NodeType, string> = {
@@ -37,9 +41,11 @@ export const nodeTypeDescriptions: Record<NodeType, string> = {
   wait: 'Wait for specified seconds',
   http: 'Send HTTP request',
   sql: 'Execute SQL query',
+  file: 'Write content to a file',
   parallel: 'Parallel fork-join branches',
   subflow: 'Execute nested subflow',
   trycatch: 'Try-catch error handling',
+  approval: 'Human approval gate with timeout',
 };
 
 export const handleColors: Record<EdgeHandle | string, string> = {

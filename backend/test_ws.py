@@ -2,18 +2,11 @@ import asyncio
 import json
 import time
 import sys
-import subprocess
-
-try:
-    import websockets
-except ImportError:
-    print('Installing websockets...')
-    subprocess.run([sys.executable, '-m', 'pip', 'install', 'websockets', '--quiet'])
-    import websockets
+import websockets
 
 
-async def test_websocket():
-    uri = 'ws://localhost:8000/ws/execute'
+async def test_websocket(ws_server_url):
+    uri = ws_server_url
     
     flow = {
         'id': 'test-ws',

@@ -23,9 +23,11 @@ import {
   WaitNode,
   HttpNode,
   SqlNode,
+  FileNode,
   ParallelNode,
   SubflowNode,
   TryCatchNode,
+  ApprovalNode,
 } from './nodes';
 import type { NodeType, FlowEdge } from '../types/flow';
 import { handleColors, generateEdgeId } from '../utils/flowUtils';
@@ -39,9 +41,11 @@ const nodeTypes = {
   wait: WaitNode,
   http: HttpNode,
   sql: SqlNode,
+  file: FileNode,
   parallel: ParallelNode,
   subflow: SubflowNode,
   trycatch: TryCatchNode,
+  approval: ApprovalNode,
 };
 
 interface FlowEditorProps {

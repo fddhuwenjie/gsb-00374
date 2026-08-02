@@ -2,18 +2,11 @@ import asyncio
 import json
 import time
 import sys
-import subprocess
-
-try:
-    import websockets
-except ImportError:
-    print('Installing websockets...')
-    subprocess.run([sys.executable, '-m', 'pip', 'install', 'websockets', '--quiet'])
-    import websockets
+import websockets
 
 
-async def test_variable_direct_access():
-    uri = 'ws://localhost:8000/ws/execute'
+async def test_variable_direct_access(ws_server_url):
+    uri = ws_server_url
     
     flow = {
         'id': 'test-direct-vars',
@@ -73,8 +66,8 @@ async def test_variable_direct_access():
     return False
 
 
-async def test_loop_direct_access():
-    uri = 'ws://localhost:8000/ws/execute'
+async def test_loop_direct_access(ws_server_url):
+    uri = ws_server_url
     
     flow = {
         'id': 'test-loop-direct',

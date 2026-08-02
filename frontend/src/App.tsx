@@ -10,7 +10,7 @@ import { DebugTab } from './components/debug/DebugTab';
 import { useFlowStore, createNewNode } from './store/useFlowStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import type { NodeType, ServerMessage, ClientMessage, FlowDefinition } from './types/flow';
-import { Clock, History, Bug, GitBranch } from 'lucide-react';
+import { Clock, History, Bug, GitBranch, Check, X, Shield } from 'lucide-react';
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/execute`;
 const API_URL = '/api';
@@ -29,10 +29,9 @@ function App() {
     setFlowName,
     setWsConnected,
     setErrorMessage,
-    setActiveNodeId,
-    updateExecutionStatus,
-    updateVariables,
-    addTraceLog,
+    applySnapshot,
+    applyEvent,
+    setExecutionId,
     resetExecution,
     getFlowDefinition,
     loadFlowDefinition,
@@ -40,12 +39,15 @@ function App() {
     addNode,
     flows,
     fetchFlows,
+    isActionAllowed,
   } = useFlowStore();
 
   const [bottomTab, setBottomTab] = useState<BottomTab>('monitor');
   const [breakpoints, setBreakpoints] = useState<string[]>([]);
   const [evaluateResults, setEvaluateResults] = useState<Map<string, any>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const currentExecutionIdRef = useRef<string | null>(null);
+  const lastSeqRef = useRef<number>(0);
 
   useEffect(() => {
     fetchFlows();
@@ -53,58 +55,63 @@ function App() {
 
   const handleMessage = useCallback(
     (message: ServerMessage) => {
-      console.log('Received message:', message.type);
-
       switch (message.type) {
-        case 'nodeEnter':
-          setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
-          break;
-        case 'nodeExit':
-          updateVariables(message.variables);
-          break;
-        case 'nodeError':
-          setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
-          setErrorMessage(`Node error: ${message.error}`);
-          break;
-        case 'status':
-          updateExecutionStatus(message.status, message.variables);
-          if (message.status === 'idle' || message.status === 'stopped' || message.status === 'completed' || message.status === 'error') {
-            setTimeout(() => setActiveNodeId(null), 500);
+        case 'subscribed': {
+          if (message.snapshot) {
+            lastSeqRef.current = message.snapshot.seq;
+            applySnapshot(message.snapshot);
+          }
+          if (message.executionId) {
+            currentExecutionIdRef.current = message.executionId;
+            setExecutionId(message.executionId);
           }
           break;
-        case 'trace':
-          addTraceLog(message.log);
+        }
+        case 'snapshot': {
+          if (message.snapshot) {
+            if (message.snapshot.seq >= lastSeqRef.current) {
+              lastSeqRef.current = message.snapshot.seq;
+              applySnapshot(message.snapshot);
+            }
+          }
           break;
-        case 'completed':
-          updateVariables(message.variables);
-          updateExecutionStatus('completed', message.variables);
-          setTimeout(() => setActiveNodeId(null), 500);
+        }
+        case 'event': {
+          if (message.event) {
+            const evt = message.event;
+            if (evt.seq > lastSeqRef.current) {
+              lastSeqRef.current = evt.seq;
+              applyEvent(evt);
+            }
+          }
           break;
+        }
+        case 'commandResult': {
+          if (message.accepted === false) {
+            setErrorMessage(message.reason || 'Command rejected');
+          }
+          if (message.snapshot) {
+            if (message.snapshot.seq >= lastSeqRef.current) {
+              lastSeqRef.current = message.snapshot.seq;
+              applySnapshot(message.snapshot);
+            }
+          }
+          break;
+        }
         case 'error':
-          setErrorMessage(message.message);
-          updateExecutionStatus('error');
+          setErrorMessage(message.message || 'Unknown error');
           break;
         case 'breakpointUpdated':
-          if (message.enabled) {
-            setBreakpoints(prev => [...new Set([...prev, message.nodeId])]);
-          } else {
+          if (message.enabled && message.nodeId) {
+            setBreakpoints(prev => [...new Set([...prev, message.nodeId!])]);
+          } else if (message.nodeId) {
             setBreakpoints(prev => prev.filter(id => id !== message.nodeId));
           }
-          break;
-        case 'breakpointHit':
-          setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
-          break;
-        case 'debugPaused':
-          setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
           break;
         case 'evaluateResult':
           setEvaluateResults(prev => {
             const next = new Map(prev);
-            next.set(message.expression, {
+            next.set(message.expression!, {
               result: message.result,
               error: message.error,
               success: message.success,
@@ -114,13 +121,22 @@ function App() {
           break;
       }
     },
-    [setActiveNodeId, updateVariables, updateExecutionStatus, addTraceLog, setErrorMessage]
+    [applySnapshot, applyEvent, setExecutionId, setErrorMessage]
   );
 
   const { send, connect } = useWebSocket({
     url: WS_URL,
     onMessage: handleMessage,
-    onOpen: () => setWsConnected(true),
+    onOpen: () => {
+      setWsConnected(true);
+      if (currentExecutionIdRef.current) {
+        send({
+          type: 'subscribe',
+          executionId: currentExecutionIdRef.current,
+          afterSeq: lastSeqRef.current,
+        });
+      }
+    },
     onClose: () => setWsConnected(false),
     onError: () => setWsConnected(false),
   });
@@ -142,11 +158,6 @@ function App() {
   const handleEvaluate = useCallback(
     async (expression: string) => {
       return new Promise<any>((resolve) => {
-        const handler = (message: ServerMessage) => {
-          if (message.type === 'evaluateResult' && message.expression === expression) {
-            resolve({ result: message.result, error: message.error, success: message.success });
-          }
-        };
         sendMessage({ type: 'evaluate', expression });
         setTimeout(() => resolve({ error: 'Timeout' }), 5000);
       });
@@ -187,26 +198,75 @@ function App() {
   const handleRun = useCallback(() => {
     if (executionState.status !== 'idle') {
       resetExecution();
+      lastSeqRef.current = 0;
+      currentExecutionIdRef.current = null;
     }
     const flow = getFlowDefinition();
-    sendMessage({ type: 'execute', flow });
+    const requestId = crypto.randomUUID();
+    sendMessage({ type: 'execute', flow, requestId });
   }, [executionState.status, getFlowDefinition, sendMessage, resetExecution]);
 
   const handlePause = useCallback(() => {
-    sendMessage({ type: 'pause' });
-  }, [sendMessage]);
+    if (!isActionAllowed('pause')) return;
+    sendMessage({
+      type: 'pause',
+      executionId: currentExecutionIdRef.current ?? undefined,
+      requestId: crypto.randomUUID(),
+    });
+  }, [sendMessage, isActionAllowed]);
 
   const handleResume = useCallback(() => {
-    sendMessage({ type: 'resume' });
-  }, [sendMessage]);
+    if (!isActionAllowed('resume')) return;
+    sendMessage({
+      type: 'resume',
+      executionId: currentExecutionIdRef.current ?? undefined,
+      requestId: crypto.randomUUID(),
+    });
+  }, [sendMessage, isActionAllowed]);
 
   const handleStep = useCallback(() => {
-    sendMessage({ type: 'step' });
-  }, [sendMessage]);
+    if (!isActionAllowed('step')) return;
+    sendMessage({
+      type: 'step',
+      executionId: currentExecutionIdRef.current ?? undefined,
+      requestId: crypto.randomUUID(),
+    });
+  }, [sendMessage, isActionAllowed]);
 
   const handleStop = useCallback(() => {
-    sendMessage({ type: 'stop' });
-  }, [sendMessage]);
+    if (!isActionAllowed('cancel')) return;
+    sendMessage({
+      type: 'cancel',
+      executionId: currentExecutionIdRef.current ?? undefined,
+      requestId: crypto.randomUUID(),
+    });
+  }, [sendMessage, isActionAllowed]);
+
+  const handleApprove = useCallback((comment?: string) => {
+    const pending = executionState.pendingApproval;
+    if (!pending) return;
+    sendMessage({
+      type: 'approve',
+      executionId: currentExecutionIdRef.current ?? pending.executionId,
+      token: pending.token,
+      responder: 'reviewer',
+      comment,
+      requestId: crypto.randomUUID(),
+    });
+  }, [sendMessage, executionState.pendingApproval]);
+
+  const handleReject = useCallback((comment?: string) => {
+    const pending = executionState.pendingApproval;
+    if (!pending) return;
+    sendMessage({
+      type: 'reject',
+      executionId: currentExecutionIdRef.current ?? pending.executionId,
+      token: pending.token,
+      responder: 'reviewer',
+      comment,
+      requestId: crypto.randomUUID(),
+    });
+  }, [sendMessage, executionState.pendingApproval]);
 
   const handleSave = useCallback(async () => {
     try {
@@ -270,6 +330,8 @@ function App() {
     if (confirm('Clear all nodes and edges?')) {
       clearFlow();
       resetExecution();
+      currentExecutionIdRef.current = null;
+      lastSeqRef.current = 0;
     }
   }, [clearFlow, resetExecution]);
 
@@ -330,6 +392,7 @@ function App() {
         onExport={handleExport}
         onClear={handleClear}
         status={executionState.status}
+        allowedActions={executionState.allowedActions}
         wsConnected={wsConnected}
         flowName={flowName}
         onFlowNameChange={setFlowName}
@@ -344,6 +407,46 @@ function App() {
           >
             ✕
           </button>
+        </div>
+      )}
+
+      {executionState.status === 'awaiting_approval' && executionState.pendingApproval && (
+        <div className="bg-amber-500/20 border-b border-amber-500 px-4 py-3 text-amber-200">
+          <div className="flex items-center justify-between max-w-full">
+            <div className="flex items-center gap-3 min-w-0">
+              <Shield size={20} className="text-amber-400 shrink-0" />
+              <div className="min-w-0">
+                <div className="font-semibold text-sm">Approval Required</div>
+                <div className="text-xs text-amber-300/80 truncate">
+                  Node: {executionState.pendingApproval.nodeId}
+                  {executionState.pendingApproval.description && ` — ${executionState.pendingApproval.description}`}
+                </div>
+                <div className="text-xs text-amber-300/60 mt-0.5">
+                  Approvers: {executionState.pendingApproval.approvers.join(', ') || 'Any'}
+                  {' · '}
+                  Timeout: {executionState.pendingApproval.deadline
+                    ? new Date(executionState.pendingApproval.deadline * 1000).toLocaleTimeString()
+                    : 'None'}
+                  {' · '}
+                  v{executionState.pendingApproval.flowVersion}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 ml-4">
+              <button
+                onClick={() => handleApprove()}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white text-sm font-medium rounded transition-colors"
+              >
+                <Check size={16} /> Approve
+              </button>
+              <button
+                onClick={() => handleReject()}
+                className="flex items-center gap-1.5 px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded transition-colors"
+              >
+                <X size={16} /> Reject
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

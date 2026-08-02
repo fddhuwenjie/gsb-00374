@@ -38,7 +38,7 @@ export const DebugTab: React.FC<DebugTabProps> = ({
   const evalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const breakpointNodes = nodes.filter(n => breakpoints.includes(n.id));
-  const isDebugging = executionStatus === 'running' || executionStatus === 'paused';
+  const isDebugging = ['running', 'paused', 'pausing', 'retry_wait', 'queued'].includes(executionStatus);
 
   useEffect(() => {
     setIsPaused(executionStatus === 'paused');
@@ -135,7 +135,7 @@ export const DebugTab: React.FC<DebugTabProps> = ({
             <div className="flex items-center gap-1">
               <button
                 onClick={() => onSendMessage({ type: 'pause' })}
-                disabled={executionStatus !== 'running'}
+                disabled={!['running', 'pausing'].includes(executionStatus)}
                 className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50"
                 title="Pause"
               >
@@ -143,7 +143,7 @@ export const DebugTab: React.FC<DebugTabProps> = ({
               </button>
               <button
                 onClick={() => onSendMessage({ type: 'resume' })}
-                disabled={executionStatus !== 'paused'}
+                disabled={!['paused', 'pausing', 'retry_wait'].includes(executionStatus)}
                 className="p-1.5 rounded bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-50"
                 title="Resume"
               >
@@ -382,9 +382,12 @@ export const DebugTab: React.FC<DebugTabProps> = ({
           <div>
             Status: <span className={`font-medium ${
               executionStatus === 'running' ? 'text-green-400' :
+              executionStatus === 'pausing' ? 'text-yellow-400' :
               executionStatus === 'paused' ? 'text-yellow-400' :
-              executionStatus === 'error' ? 'text-red-400' :
-              executionStatus === 'completed' ? 'text-blue-400' : 'text-slate-500'
+              executionStatus === 'retry_wait' ? 'text-orange-400' :
+              executionStatus === 'failed' ? 'text-red-400' :
+              executionStatus === 'succeeded' ? 'text-blue-400' :
+              executionStatus === 'cancelled' ? 'text-slate-400' : 'text-slate-500'
             }`}>{executionStatus}</span>
           </div>
           <div>
