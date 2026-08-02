@@ -7,15 +7,16 @@ import { Monitor } from './components/Monitor';
 import { TriggersTab } from './components/triggers/TriggersTab';
 import { HistoryTab } from './components/history/HistoryTab';
 import { DebugTab } from './components/debug/DebugTab';
+import { DurableMonitor } from './components/durable/DurableMonitor';
 import { useFlowStore, createNewNode } from './store/useFlowStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import type { NodeType, ServerMessage, ClientMessage, FlowDefinition } from './types/flow';
-import { Clock, History, Bug, GitBranch } from 'lucide-react';
+import { Clock, History, Bug, GitBranch, ShieldCheck } from 'lucide-react';
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/execute`;
 const API_URL = '/api';
 
-type BottomTab = 'monitor' | 'triggers' | 'history' | 'debug';
+type BottomTab = 'monitor' | 'triggers' | 'history' | 'debug' | 'durable';
 
 function App() {
   const {
@@ -291,6 +292,7 @@ function App() {
     { id: 'triggers', label: 'Triggers', icon: <Clock size={14} /> },
     { id: 'history', label: 'History', icon: <History size={14} /> },
     { id: 'debug', label: 'Debug', icon: <Bug size={14} /> },
+    { id: 'durable', label: 'Durable', icon: <ShieldCheck size={14} /> },
   ];
 
   const renderBottomPanel = () => {
@@ -314,6 +316,8 @@ function App() {
             onEvaluate={handleEvaluate}
           />
         );
+      case 'durable':
+        return <DurableMonitor />;
     }
   };
 
