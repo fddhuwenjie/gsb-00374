@@ -12,7 +12,9 @@ sys.path.insert(0, BASE_DIR)
 from routers.flows import router as flows_router
 from routers.triggers import router as triggers_router
 from routers.executions import router as executions_router
+from routers.durable import router as durable_router
 from ws.execute import websocket_endpoint
+from ws.durable_monitor import durable_monitor_endpoint
 from storage.trigger_store import TriggerStore
 from storage.flow_store import FlowStore
 from engine.trigger_scheduler import TriggerScheduler
@@ -34,9 +36,11 @@ app.add_middleware(
 )
 
 app.add_websocket_route("/ws/execute", websocket_endpoint)
+app.add_websocket_route("/ws/durable/{execution_id}", durable_monitor_endpoint)
 app.include_router(flows_router)
 app.include_router(triggers_router)
 app.include_router(executions_router)
+app.include_router(durable_router)
 
 
 @app.on_event("startup")
