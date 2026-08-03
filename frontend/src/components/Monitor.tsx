@@ -9,19 +9,39 @@ import {
   Check,
   X,
   AlertCircle,
+  ShieldQuestion,
+  Clock,
 } from 'lucide-react';
 import { useFlowStore } from '../store/useFlowStore';
 import { formatValue, formatTimestamp } from '../utils/flowUtils';
 import type { TraceLog } from '../types/flow';
 
-export const Monitor: React.FC = () => {
+export const Monitor: React.FC<{ onApproval?: (decision: 'approve' | 'reject', token: string, comment?: string) => void }> = ({ onApproval }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState<'variables' | 'trace'>('variables');
   const [editingVar, setEditingVar] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
   const { executionState, setVariable } = useFlowStore();
-  const { variables, trace, status } = executionState;
+  const { variables, trace, status, allowedActions, pendingApproval } = executionState;
+
+  const canApprove = allowedActions.includes('approve');
+  const canReject = allowedActions.includes('reject');
+  const [comment, setComment] = useState('');
+
+  const sendApproval = (decision: 'approve' | 'reject') => {
+    const token = pendingApproval?.token;
+    if (!token || !onApproval) return;
+    onApproval(decision, token, comment || undefined);
+    setComment('');
+  };
+
+  const formatDeadline = (ts: number) => {
+    const remaining = Math.max(0, ts - Date.now());
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    return `${mins}m ${secs}s remaining`;
+  };
 
   const startEdit = (name: string, value: any) => {
     setEditingVar(name);
@@ -95,12 +115,22 @@ export const Monitor: React.FC = () => {
             className={`text-xs px-2 py-0.5 rounded ${
               status === 'running'
                 ? 'bg-green-500/20 text-green-400'
+                : status === 'pausing'
+                ? 'bg-orange-500/20 text-orange-400'
                 : status === 'paused'
                 ? 'bg-yellow-500/20 text-yellow-400'
-                : status === 'completed'
+                : status === 'awaiting_approval'
+                ? 'bg-purple-500/20 text-purple-400'
+                : status === 'retry_wait'
+                ? 'bg-orange-500/20 text-orange-400'
+                : status === 'queued'
                 ? 'bg-blue-500/20 text-blue-400'
-                : status === 'error'
+                : status === 'succeeded' || status === 'completed'
+                ? 'bg-emerald-500/20 text-emerald-400'
+                : status === 'failed' || status === 'error'
                 ? 'bg-red-500/20 text-red-400'
+                : status === 'cancelled' || status === 'stopped'
+                ? 'bg-slate-600 text-slate-400'
                 : 'bg-slate-600 text-slate-400'
             }`}
           >
@@ -144,6 +174,56 @@ export const Monitor: React.FC = () => {
           </div>
         )}
       </div>
+
+      {isExpanded && pendingApproval && (canApprove || canReject) && (
+        <div className="px-4 py-3 bg-purple-500/10 border-b border-purple-500/30">
+          <div className="flex items-start gap-3">
+            <ShieldQuestion size={18} className="text-purple-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-purple-300 font-semibold text-sm">Approval Required</div>
+              <div className="text-slate-300 text-sm mt-0.5">{pendingApproval.prompt || 'Please review and respond'}</div>
+              <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
+                <span className="flex items-center gap-1">
+                  <Clock size={11} />
+                  {formatDeadline(pendingApproval.deadline)}
+                </span>
+                <span>node: <code className="text-slate-300">{pendingApproval.nodeId}</code></span>
+                {pendingApproval.branchId && (
+                  <span>branch: <code className="text-slate-300">{pendingApproval.branchId}</code></span>
+                )}
+                <span>v{pendingApproval.flowVersion ?? '-'}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="text"
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Comment (optional)..."
+                  className="flex-1 bg-slate-700/60 text-white px-2.5 py-1 rounded text-xs border border-slate-600 focus:outline-none focus:border-purple-500"
+                />
+                {canApprove && (
+                  <button
+                    onClick={() => sendApproval('approve')}
+                    className="px-3 py-1 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 text-xs font-medium transition-colors flex items-center gap-1"
+                  >
+                    <Check size={13} />
+                    Approve
+                  </button>
+                )}
+                {canReject && (
+                  <button
+                    onClick={() => sendApproval('reject')}
+                    className="px-3 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs font-medium transition-colors flex items-center gap-1"
+                  >
+                    <X size={13} />
+                    Reject
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isExpanded && (
         <div className="h-56 overflow-auto">

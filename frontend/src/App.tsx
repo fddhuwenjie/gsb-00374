@@ -9,7 +9,7 @@ import { HistoryTab } from './components/history/HistoryTab';
 import { DebugTab } from './components/debug/DebugTab';
 import { useFlowStore, createNewNode } from './store/useFlowStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import type { NodeType, ServerMessage, ClientMessage, FlowDefinition } from './types/flow';
+import type { NodeType, ServerMessage, ClientMessage, FlowDefinition, CommandType } from './types/flow';
 import { Clock, History, Bug, GitBranch } from 'lucide-react';
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/execute`;
@@ -30,8 +30,6 @@ function App() {
     setWsConnected,
     setErrorMessage,
     setActiveNodeId,
-    updateExecutionStatus,
-    updateVariables,
     addTraceLog,
     resetExecution,
     getFlowDefinition,
@@ -40,87 +38,75 @@ function App() {
     addNode,
     flows,
     fetchFlows,
+    applySnapshot,
+    applyEvent,
   } = useFlowStore();
 
   const [bottomTab, setBottomTab] = useState<BottomTab>('monitor');
   const [breakpoints, setBreakpoints] = useState<string[]>([]);
   const [evaluateResults, setEvaluateResults] = useState<Map<string, any>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const currentExecutionIdRef = useRef<string | null>(null);
+  const commandSeqRef = useRef(0);
 
   useEffect(() => {
     fetchFlows();
   }, [fetchFlows]);
 
+  const nextCommandId = () => {
+    commandSeqRef.current += 1;
+    return `cmd_${Date.now()}_${commandSeqRef.current}`;
+  };
+
   const handleMessage = useCallback(
     (message: ServerMessage) => {
-      console.log('Received message:', message.type);
-
       switch (message.type) {
+        case 'snapshot':
+          currentExecutionIdRef.current = message.snapshot.executionId;
+          applySnapshot(message.snapshot);
+          break;
+        case 'event':
+          applyEvent(message.event);
+          break;
+        case 'commandResult':
+          if (!message.accepted && message.reason !== 'duplicate') {
+            setErrorMessage(`Command ${message.command} rejected`);
+          }
+          break;
+        case 'error':
+          setErrorMessage(message.message);
+          break;
         case 'nodeEnter':
           setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
-          break;
-        case 'nodeExit':
-          updateVariables(message.variables);
-          break;
-        case 'nodeError':
-          setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
-          setErrorMessage(`Node error: ${message.error}`);
-          break;
-        case 'status':
-          updateExecutionStatus(message.status, message.variables);
-          if (message.status === 'idle' || message.status === 'stopped' || message.status === 'completed' || message.status === 'error') {
-            setTimeout(() => setActiveNodeId(null), 500);
-          }
           break;
         case 'trace':
           addTraceLog(message.log);
           break;
-        case 'completed':
-          updateVariables(message.variables);
-          updateExecutionStatus('completed', message.variables);
-          setTimeout(() => setActiveNodeId(null), 500);
-          break;
-        case 'error':
-          setErrorMessage(message.message);
-          updateExecutionStatus('error');
-          break;
         case 'breakpointUpdated':
           if (message.enabled) {
-            setBreakpoints(prev => [...new Set([...prev, message.nodeId])]);
+            setBreakpoints((prev) => [...new Set([...prev, message.nodeId])]);
           } else {
-            setBreakpoints(prev => prev.filter(id => id !== message.nodeId));
+            setBreakpoints((prev) => prev.filter((id) => id !== message.nodeId));
           }
           break;
-        case 'breakpointHit':
-          setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
-          break;
-        case 'debugPaused':
-          setActiveNodeId(message.nodeId);
-          updateVariables(message.variables);
-          break;
-        case 'evaluateResult':
-          setEvaluateResults(prev => {
-            const next = new Map(prev);
-            next.set(message.expression, {
-              result: message.result,
-              error: message.error,
-              success: message.success,
-            });
-            return next;
-          });
+        default:
           break;
       }
     },
-    [setActiveNodeId, updateVariables, updateExecutionStatus, addTraceLog, setErrorMessage]
+    [applySnapshot, applyEvent, setActiveNodeId, addTraceLog, setErrorMessage]
   );
 
-  const { send, connect } = useWebSocket({
+  const { send } = useWebSocket({
     url: WS_URL,
     onMessage: handleMessage,
-    onOpen: () => setWsConnected(true),
+    onOpen: () => {
+      setWsConnected(true);
+      const executionId = currentExecutionIdRef.current;
+      const latestSeq = useFlowStore.getState().executionState.latestSeq;
+      if (executionId) {
+        send({ type: 'subscribe', executionId, sinceSeq: latestSeq });
+      }
+    },
     onClose: () => setWsConnected(false),
     onError: () => setWsConnected(false),
   });
@@ -130,6 +116,17 @@ function App() {
       send(message);
     },
     [send]
+  );
+
+  const sendCommand = useCallback(
+    (command: CommandType) => {
+      const eid = currentExecutionIdRef.current;
+      const commandId = nextCommandId();
+      if (eid) {
+        sendMessage({ type: 'command', command, executionId: eid, commandId });
+      }
+    },
+    [sendMessage]
   );
 
   const handleSetBreakpoint = useCallback(
@@ -142,11 +139,6 @@ function App() {
   const handleEvaluate = useCallback(
     async (expression: string) => {
       return new Promise<any>((resolve) => {
-        const handler = (message: ServerMessage) => {
-          if (message.type === 'evaluateResult' && message.expression === expression) {
-            resolve({ result: message.result, error: message.error, success: message.success });
-          }
-        };
         sendMessage({ type: 'evaluate', expression });
         setTimeout(() => resolve({ error: 'Timeout' }), 5000);
       });
@@ -170,14 +162,11 @@ function App() {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
-
       const type = event.dataTransfer.getData('application/reactflow') as NodeType;
       if (!type) return;
-
       const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
       const x = event.clientX - rect.left - 70;
       const y = event.clientY - rect.top - 30;
-
       const newNode = createNewNode(type, { x, y });
       addNode(newNode);
     },
@@ -185,27 +174,48 @@ function App() {
   );
 
   const handleRun = useCallback(() => {
-    if (executionState.status !== 'idle') {
-      resetExecution();
-    }
+    resetExecution();
     const flow = getFlowDefinition();
-    sendMessage({ type: 'execute', flow });
-  }, [executionState.status, getFlowDefinition, sendMessage, resetExecution]);
+    currentExecutionIdRef.current = null;
+    sendMessage({ type: 'execute', flow, commandId: nextCommandId() });
+  }, [getFlowDefinition, sendMessage, resetExecution]);
 
   const handlePause = useCallback(() => {
-    sendMessage({ type: 'pause' });
-  }, [sendMessage]);
+    sendCommand('pause');
+  }, [sendCommand]);
 
   const handleResume = useCallback(() => {
-    sendMessage({ type: 'resume' });
-  }, [sendMessage]);
+    sendCommand('resume');
+  }, [sendCommand]);
+
+  const handleCancel = useCallback(() => {
+    sendCommand('cancel');
+  }, [sendCommand]);
+
+  const handleRetry = useCallback(() => {
+    sendCommand('retry');
+  }, [sendCommand]);
+
+  const handleApproval = useCallback(
+    (decision: 'approve' | 'reject', token: string, comment?: string) => {
+      const eid = currentExecutionIdRef.current;
+      if (eid) {
+        sendMessage({
+          type: 'command',
+          command: decision,
+          executionId: eid,
+          commandId: nextCommandId(),
+          token,
+          approver: 'web-user',
+          comment,
+        });
+      }
+    },
+    [sendMessage]
+  );
 
   const handleStep = useCallback(() => {
     sendMessage({ type: 'step' });
-  }, [sendMessage]);
-
-  const handleStop = useCallback(() => {
-    sendMessage({ type: 'stop' });
   }, [sendMessage]);
 
   const handleSave = useCallback(async () => {
@@ -216,7 +226,6 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(flow),
       });
-
       if (!response.ok) {
         await fetch(`${API_URL}/flows`, {
           method: 'POST',
@@ -224,12 +233,11 @@ function App() {
           body: JSON.stringify(flow),
         });
       }
-      alert('Flow saved successfully!');
       fetchFlows();
     } catch (error) {
-      alert('Failed to save flow: ' + (error as Error).message);
+      setErrorMessage('Failed to save flow: ' + (error as Error).message);
     }
-  }, [getFlowDefinition, fetchFlows]);
+  }, [getFlowDefinition, fetchFlows, setErrorMessage]);
 
   const handleLoad = useCallback(() => {
     fileInputRef.current?.click();
@@ -239,19 +247,17 @@ function App() {
     async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
-
       try {
         const text = await file.text();
         const flow = JSON.parse(text) as FlowDefinition;
         loadFlowDefinition(flow);
         fetchFlows();
-        alert('Flow loaded successfully!');
       } catch (error) {
-        alert('Failed to load flow: ' + (error as Error).message);
+        setErrorMessage('Failed to load flow: ' + (error as Error).message);
       }
       event.target.value = '';
     },
-    [loadFlowDefinition, fetchFlows]
+    [loadFlowDefinition, fetchFlows, setErrorMessage]
   );
 
   const handleExport = useCallback(() => {
@@ -282,10 +288,6 @@ function App() {
     }
   }, []);
 
-  useEffect(() => {
-    connect();
-  }, [connect]);
-
   const bottomTabs: { id: BottomTab; label: string; icon: React.ReactNode }[] = [
     { id: 'monitor', label: 'Monitor', icon: <GitBranch size={14} /> },
     { id: 'triggers', label: 'Triggers', icon: <Clock size={14} /> },
@@ -296,7 +298,7 @@ function App() {
   const renderBottomPanel = () => {
     switch (bottomTab) {
       case 'monitor':
-        return <Monitor />;
+        return <Monitor onApproval={handleApproval} />;
       case 'triggers':
         return <TriggersTab flowId={flowId} flows={flows} />;
       case 'history':
@@ -323,13 +325,15 @@ function App() {
         onRun={handleRun}
         onPause={handlePause}
         onResume={handleResume}
+        onCancel={handleCancel}
+        onRetry={handleRetry}
         onStep={handleStep}
-        onStop={handleStop}
         onSave={handleSave}
         onLoad={handleLoad}
         onExport={handleExport}
         onClear={handleClear}
         status={executionState.status}
+        allowedActions={executionState.allowedActions}
         wsConnected={wsConnected}
         flowName={flowName}
         onFlowNameChange={setFlowName}
@@ -349,7 +353,6 @@ function App() {
 
       <div className="flex-1 flex overflow-hidden">
         <Sidebar onDragStart={onDragStart} />
-
         <div className="flex-1 flex flex-col overflow-hidden">
           <FlowEditor
             onDragStart={onDragStart}
@@ -357,7 +360,6 @@ function App() {
             onDrop={onDrop}
           />
         </div>
-
         <Properties nodes={nodes} />
       </div>
 
@@ -375,27 +377,10 @@ function App() {
             >
               {tab.icon}
               {tab.label}
-              {tab.id === 'triggers' && (
-                <span className="text-xs bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded">
-                  NEW
-                </span>
-              )}
-              {tab.id === 'history' && (
-                <span className="text-xs bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded">
-                  NEW
-                </span>
-              )}
-              {tab.id === 'debug' && (
-                <span className="text-xs bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">
-                  NEW
-                </span>
-              )}
             </button>
           ))}
         </div>
-        <div className="flex-1 overflow-hidden">
-          {renderBottomPanel()}
-        </div>
+        <div className="flex-1 overflow-hidden">{renderBottomPanel()}</div>
       </div>
 
       <input

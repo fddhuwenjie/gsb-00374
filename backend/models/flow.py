@@ -1,8 +1,11 @@
 from typing import Literal, Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 
-NodeType = Literal['start', 'end', 'task', 'condition', 'loop', 'wait', 'http', 'sql', 'parallel', 'subflow', 'trycatch']
-ExecutionStatus = Literal['idle', 'running', 'paused', 'stopped', 'completed', 'error']
+NodeType = Literal['start', 'end', 'task', 'condition', 'loop', 'wait', 'http', 'sql', 'file_write', 'approval', 'parallel', 'subflow', 'trycatch']
+ExecutionStatus = Literal[
+    'idle', 'queued', 'running', 'pausing', 'paused', 'retry_wait',
+    'succeeded', 'failed', 'cancelled', 'stopped', 'completed', 'error'
+]
 TraceAction = Literal['enter', 'exit', 'error']
 EdgeHandle = Literal['true', 'false', 'loop', 'catch']
 BackoffType = Literal['fixed', 'exponential']
@@ -36,6 +39,18 @@ class SqlConfig(BaseModel):
     params: List[Any] = Field(default_factory=list)
 
 
+class FileWriteConfig(BaseModel):
+    path: str
+    content: str = ""
+    mode: str = "w"
+
+
+class ApprovalConfig(BaseModel):
+    prompt: str = ""
+    approvers: List[str] = Field(default_factory=list)
+    timeoutSeconds: float = 3600
+
+
 class ParallelConfig(BaseModel):
     branchNodeIds: List[str]
 
@@ -58,6 +73,8 @@ class NodeData(BaseModel):
     retry: Optional[RetryConfig] = None
     httpConfig: Optional[HttpConfig] = None
     sqlConfig: Optional[SqlConfig] = None
+    fileWriteConfig: Optional[FileWriteConfig] = None
+    approvalConfig: Optional[ApprovalConfig] = None
     parallelConfig: Optional[ParallelConfig] = None
     subflowConfig: Optional[SubflowConfig] = None
     tryCatchConfig: Optional[TryCatchConfig] = None

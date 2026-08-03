@@ -306,6 +306,49 @@ export const SqlNode: React.FC<CustomNodeProps> = ({ data, selected, isActive })
   );
 };
 
+export const FileWriteNode: React.FC<CustomNodeProps> = ({ data, selected, isActive }) => {
+  const colors = nodeTypeColors.file_write;
+  return (
+    <div
+      className={`relative px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 min-w-[140px]
+        ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900' : ''}
+        ${isActive ? 'ring-4 ring-blue-400' : ''}
+        ${data.breakpoint ? 'ring-2 ring-red-500' : ''}
+      `}
+      style={{
+        backgroundColor: colors.bg,
+        color: colors.text,
+        borderLeft: `4px solid ${colors.border}`,
+      }}
+    >
+      {data.breakpoint && (
+        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[10px]">
+          ●
+        </div>
+      )}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!w-3 !h-3 !bg-white !border-2 !border-slate-700"
+      />
+      <div className="font-semibold flex items-center gap-2">
+        <span>📄</span>
+        {data.label}
+      </div>
+      {data.fileWriteConfig?.path && (
+        <div className="text-xs mt-1 opacity-80 truncate max-w-[160px] font-mono">
+          {data.fileWriteConfig.path}
+        </div>
+      )}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!w-3 !h-3 !bg-white !border-2 !border-slate-700"
+      />
+    </div>
+  );
+};
+
 export const ParallelNode: React.FC<CustomNodeProps> = ({ data, selected, isActive }) => {
   const colors = nodeTypeColors.parallel;
   return (
@@ -437,6 +480,54 @@ export const TryCatchNode: React.FC<CustomNodeProps> = ({ data, selected, isActi
         position={Position.Right}
         id="catch"
         className="!w-3 !h-3 !bg-pink-500 !border-2 !border-slate-700 !top-[60%]"
+      />
+    </div>
+  );
+};
+
+export const ApprovalNode: React.FC<CustomNodeProps> = ({ data, selected, isActive }) => {
+  const colors = nodeTypeColors.approval;
+  return (
+    <div
+      className={`relative px-4 py-3 rounded-lg font-medium text-sm transition-all duration-200 min-w-[150px]
+        ${selected ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-900' : ''}
+        ${isActive ? 'ring-4 ring-blue-400 animate-pulse' : ''}
+        ${data.breakpoint ? 'ring-2 ring-red-500' : ''}
+      `}
+      style={{
+        backgroundColor: colors.bg,
+        color: colors.text,
+        borderLeft: `4px solid ${colors.border}`,
+      }}
+    >
+      {data.breakpoint && (
+        <div className="absolute -top-2 -right-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white flex items-center justify-center text-[10px]">
+          ●
+        </div>
+      )}
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!w-3 !h-3 !bg-white !border-2 !border-slate-700"
+      />
+      <div className="font-semibold flex items-center gap-2">
+        <span>🔐</span>
+        {data.label}
+      </div>
+      {data.approvalConfig?.prompt && (
+        <div className="text-xs mt-1 opacity-80 truncate max-w-[160px]">
+          {data.approvalConfig.prompt}
+        </div>
+      )}
+      {data.approvalConfig?.timeoutSeconds && (
+        <div className="text-xs mt-0.5 opacity-60">
+          ⏱ {data.approvalConfig.timeoutSeconds}s
+        </div>
+      )}
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!w-3 !h-3 !bg-white !border-2 !border-slate-700"
       />
     </div>
   );
