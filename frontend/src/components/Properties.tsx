@@ -3,7 +3,7 @@ import CodeMirror from '@uiw/react-codemirror';
 import { python } from '@codemirror/lang-python';
 import { sql } from '@codemirror/lang-sql';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { X, Settings, Type, Code, GitBranch, RotateCcw, Clock, Globe, Database, Zap, Boxes, Shield, RefreshCw, Bug, Plus, Trash2 } from 'lucide-react';
+import { X, Settings, Type, Code, GitBranch, RotateCcw, Clock, Globe, Database, FileText, Zap, Boxes, Shield, RefreshCw, Bug, Plus, Trash2, ShieldQuestion } from 'lucide-react';
 import { useFlowStore } from '../store/useFlowStore';
 import type { FlowNode, NodeType } from '../types/flow';
 
@@ -20,6 +20,8 @@ const nodeIcons: Record<NodeType, React.ReactNode> = {
   wait: <Clock size={16} />,
   http: <Globe size={16} />,
   sql: <Database size={16} />,
+  file_write: <FileText size={16} />,
+  approval: <ShieldQuestion size={16} />,
   parallel: <Zap size={16} />,
   subflow: <Boxes size={16} />,
   trycatch: <Shield size={16} />,
@@ -34,6 +36,8 @@ const nodeTypeTitles: Record<NodeType, string> = {
   wait: 'Wait Node',
   http: 'HTTP Node',
   sql: 'SQL Node',
+  file_write: 'File Write Node',
+  approval: 'Approval Node',
   parallel: 'Parallel Node',
   subflow: 'Subflow Node',
   trycatch: 'TryCatch Node',
@@ -418,6 +422,87 @@ export const Properties: React.FC<PropertiesProps> = () => {
                 }}
                 className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm font-mono h-20 resize-none"
                 placeholder="[param1, param2]"
+              />
+            </div>
+          </>
+        )}
+
+        {type === 'file_write' && (
+          <>
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-3 flex items-center gap-2">
+                <FileText size={14} className="text-teal-400" />
+                File Write Configuration
+              </h3>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                File Path
+              </label>
+              <input
+                type="text"
+                value={data.fileWriteConfig?.path || ''}
+                onChange={(e) => updateNestedData(selectedNode.id, 'fileWriteConfig.path', e.target.value)}
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm font-mono"
+                placeholder="output.txt"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Content
+              </label>
+              <textarea
+                value={data.fileWriteConfig?.content || ''}
+                onChange={(e) => updateNestedData(selectedNode.id, 'fileWriteConfig.content', e.target.value)}
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm font-mono h-32 resize-none"
+                placeholder="File content..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Mode
+              </label>
+              <select
+                value={data.fileWriteConfig?.mode || 'w'}
+                onChange={(e) => updateNestedData(selectedNode.id, 'fileWriteConfig.mode', e.target.value)}
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500 text-sm"
+              >
+                <option value="w">Write (overwrite)</option>
+                <option value="a">Append</option>
+              </select>
+            </div>
+          </>
+        )}
+
+        {type === 'approval' && (
+          <>
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-3 flex items-center gap-2">
+                <ShieldQuestion size={14} className="text-purple-400" />
+                Approval Configuration
+              </h3>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Prompt
+              </label>
+              <textarea
+                value={data.approvalConfig?.prompt || ''}
+                onChange={(e) => updateNestedData(selectedNode.id, 'approvalConfig.prompt', e.target.value)}
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-purple-500 text-sm h-20 resize-none"
+                placeholder="Please approve this step..."
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Timeout (seconds)
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={data.approvalConfig?.timeoutSeconds || 3600}
+                onChange={(e) => updateNestedData(selectedNode.id, 'approvalConfig.timeoutSeconds', parseFloat(e.target.value) || 3600)}
+                className="w-full bg-slate-700 text-white px-3 py-2 rounded border border-slate-600 focus:outline-none focus:border-purple-500 text-sm"
               />
             </div>
           </>

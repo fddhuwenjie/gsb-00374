@@ -11,43 +11,67 @@ import {
   Wifi,
   WifiOff,
   RotateCcw,
+  PlayCircle,
 } from 'lucide-react';
-import type { ExecutionStatus } from '../types/flow';
+import type { ExecutionStatus, CommandType } from '../types/flow';
 
 interface ToolbarProps {
   onRun: () => void;
   onPause: () => void;
   onResume: () => void;
+  onCancel: () => void;
+  onRetry: () => void;
   onStep: () => void;
-  onStop: () => void;
   onSave: () => void;
   onLoad: () => void;
   onExport: () => void;
   onClear: () => void;
   status: ExecutionStatus;
+  allowedActions: CommandType[];
   wsConnected: boolean;
   flowName: string;
   onFlowNameChange: (name: string) => void;
 }
 
+const statusColors: Record<string, string> = {
+  running: 'text-green-400',
+  pausing: 'text-orange-400',
+  paused: 'text-yellow-400',
+  awaiting_approval: 'text-purple-400',
+  retry_wait: 'text-orange-400',
+  queued: 'text-blue-400',
+  succeeded: 'text-emerald-400',
+  failed: 'text-red-400',
+  cancelled: 'text-slate-400',
+  completed: 'text-blue-400',
+  error: 'text-red-400',
+  stopped: 'text-slate-400',
+  idle: 'text-slate-300',
+};
+
 export const Toolbar: React.FC<ToolbarProps> = ({
   onRun,
   onPause,
   onResume,
+  onCancel,
+  onRetry,
   onStep,
-  onStop,
   onSave,
   onLoad,
   onExport,
   onClear,
   status,
+  allowedActions,
   wsConnected,
   flowName,
   onFlowNameChange,
 }) => {
-  const isRunning = status === 'running';
-  const isPaused = status === 'paused';
-  const isIdle = status === 'idle' || status === 'completed' || status === 'stopped' || status === 'error';
+  const canStart = allowedActions.includes('start');
+  const canPause = allowedActions.includes('pause');
+  const canResume = allowedActions.includes('resume');
+  const canCancel = allowedActions.includes('cancel');
+  const canRetry = allowedActions.includes('retry');
+  const isIdle = status === 'idle';
 
   return (
     <div className="h-14 bg-slate-800 border-b border-slate-700 px-4 flex items-center justify-between">
@@ -75,21 +99,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
         <div className="text-slate-500 text-sm px-2">
           Status:{' '}
-          <span
-            className={`font-semibold ${
-              status === 'running'
-                ? 'text-green-400'
-                : status === 'paused'
-                ? 'text-yellow-400'
-                : status === 'completed'
-                ? 'text-blue-400'
-                : status === 'error'
-                ? 'text-red-400'
-                : status === 'stopped'
-                ? 'text-slate-400'
-                : 'text-slate-300'
-            }`}
-          >
+          <span className={`font-semibold ${statusColors[status] || 'text-slate-300'}`}>
             {status}
           </span>
         </div>
@@ -97,7 +107,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
 
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1 bg-slate-700/50 rounded-lg p-1">
-          {isIdle && (
+          {(isIdle || canStart) && (
             <button
               onClick={onRun}
               className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
@@ -107,7 +117,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
           )}
 
-          {isRunning && (
+          {canPause && (
             <button
               onClick={onPause}
               className="p-2 rounded hover:bg-yellow-500/20 text-yellow-400 transition-colors"
@@ -117,43 +127,43 @@ export const Toolbar: React.FC<ToolbarProps> = ({
             </button>
           )}
 
-          {isPaused && (
+          {canResume && (
             <button
               onClick={onResume}
               className="p-2 rounded hover:bg-green-500/20 text-green-400 transition-colors"
               title="Resume"
             >
-              <Play size={18} />
+              <PlayCircle size={18} />
             </button>
           )}
 
-          {(isRunning || isPaused) && (
+          {canCancel && (
+            <button
+              onClick={onCancel}
+              className="p-2 rounded hover:bg-red-500/20 text-red-400 transition-colors"
+              title="Cancel"
+            >
+              <Square size={18} />
+            </button>
+          )}
+
+          {canRetry && (
+            <button
+              onClick={onRetry}
+              className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
+              title="Retry"
+            >
+              <RotateCcw size={18} />
+            </button>
+          )}
+
+          {(canPause || canResume) && (
             <button
               onClick={onStep}
               className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
               title="Step"
             >
               <SkipForward size={18} />
-            </button>
-          )}
-
-          {(isRunning || isPaused) && (
-            <button
-              onClick={onStop}
-              className="p-2 rounded hover:bg-red-500/20 text-red-400 transition-colors"
-              title="Stop"
-            >
-              <Square size={18} />
-            </button>
-          )}
-
-          {!isIdle && (
-            <button
-              onClick={onRun}
-              className="p-2 rounded hover:bg-blue-500/20 text-blue-400 transition-colors"
-              title="Restart"
-            >
-              <RotateCcw size={18} />
             </button>
           )}
         </div>
